@@ -68,3 +68,17 @@ def input_schedule(request, slug):
         return redirect('scheduler:calendar', slug=slug)
 
     return render(request, 'scheduler/input.html', {'group': group})
+
+def delete_schedule(request, pk):
+    schedule = get_object_or_404(Schedule, pk=pk)
+    slug = schedule.group.slug
+    if request.method == 'POST':
+        schedule.delete()
+    return redirect('scheduler:calendar', slug=slug)
+
+def delete_group(request, slug):
+    group = get_object_or_404(Group, slug=slug)
+    if request.method == 'POST':
+        group.delete()
+        return redirect('scheduler:index')
+    return redirect('scheduler:calendar', slug=slug)

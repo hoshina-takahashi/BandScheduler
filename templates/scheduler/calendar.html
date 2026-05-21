@@ -31,11 +31,21 @@
             {% if schedule.label %}
                 <span class="schedule-label">{{ schedule.label }}</span>
             {% endif %}
+            <form method="POST" action="{% url 'scheduler:delete_schedule' schedule.pk %}" style="margin-left: auto;">
+                {% csrf_token %}
+                <button type="submit" class="btn-delete" onclick="return confirm('この予定を削除しますか？')">✕</button>
+            </form>
         </div>
     {% empty %}
         <p class="empty">まだ予定が登録されていません</p>
     {% endfor %}
 </div>
 
-<a href="{% url 'scheduler:input' group.slug %}" class="btn">予定を入力する →</a>
+<div style="display: flex; gap: 12px; margin-top: 24px;">
+    <a href="{% url 'scheduler:input' group.slug %}" class="btn">予定を入力する →</a>
+    <form method="POST" action="{% url 'scheduler:delete_group' group.slug %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger" onclick="return confirm('グループ「{{ group.name }}」を削除しますか？\n登録された予定も全て消えます。')">グループを削除</button>
+    </form>
+</div>
 {% endblock %}
