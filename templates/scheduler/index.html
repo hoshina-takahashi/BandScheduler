@@ -1,0 +1,26 @@
+{% extends 'scheduler/base.html' %}
+
+{% block content %}
+<h2>スケジュールを調整する</h2>
+
+<div class="card">
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>グループ名（バンド名など）</label>
+            <input type="text" name="name" placeholder="例：サークルバンドA" required>
+        </div>
+        <button type="submit" class="btn">グループを作成してURLを発行 →</button>
+    </form>
+</div>
+
+<h3>既存のグループ</h3>
+{% for group in groups %}
+    <a href="{% url 'scheduler:calendar' group.slug %}" class="group-link">
+        <span>{{ group.name }}</span>
+        <span class="group-link-arrow">›</span>
+    </a>
+{% empty %}
+    <p class="empty">まだグループがありません。上のフォームから作成してください。</p>
+{% endfor %}
+{% endblock %}

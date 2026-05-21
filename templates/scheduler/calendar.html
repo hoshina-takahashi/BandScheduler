@@ -1,0 +1,41 @@
+{% extends 'scheduler/base.html' %}
+
+{% block content %}
+<h2>{{ group.name }}</h2>
+
+<div class="url-box">
+    <span class="url-text">{{ request.build_absolute_uri }}</span>
+    <button class="btn btn-outline" onclick="navigator.clipboard.writeText('{{ request.build_absolute_uri }}'); this.textContent='コピー済み ✓'">URLをコピー</button>
+</div>
+
+<h3>🟢 共通の空き時間</h3>
+{% for date, free_slots in free_slots_by_date.items %}
+    <div class="free-date">{{ date }}</div>
+    <div>
+        {% for hour in free_slots %}
+            <span class="free-slot">{{ hour }}:00〜{{ hour|add:1 }}:00</span>
+        {% empty %}
+            <span class="empty">空き時間なし</span>
+        {% endfor %}
+    </div>
+{% empty %}
+    <p class="empty">予定が登録されると空き時間が表示されます</p>
+{% endfor %}
+
+<h3>📋 登録済みの予定</h3>
+<div class="card">
+    {% for schedule in schedules %}
+        <div class="schedule-item">
+            <span class="schedule-user">{{ schedule.user_name }}</span>
+            <span class="schedule-time">{{ schedule.date }} {{ schedule.start_time }}〜{{ schedule.end_time }}</span>
+            {% if schedule.label %}
+                <span class="schedule-label">{{ schedule.label }}</span>
+            {% endif %}
+        </div>
+    {% empty %}
+        <p class="empty">まだ予定が登録されていません</p>
+    {% endfor %}
+</div>
+
+<a href="{% url 'scheduler:input' group.slug %}" class="btn">予定を入力する →</a>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'scheduler/base.html' %}
+
+{% block content %}
+<h2>予定を入力する</h2>
+<p style="color: var(--text-muted); margin-bottom: 24px;">{{ group.name }} / 埋まっている時間を登録してください</p>
+
+<div class="card">
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>あなたの名前</label>
+            <input type="text" name="user_name" placeholder="例：たろう" required>
+        </div>
+        <div class="form-group">
+            <label>日付</label>
+            <input type="date" name="date" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+                <label>開始時刻</label>
+                <input type="time" name="start_time" required>
+            </div>
+            <div class="form-group">
+                <label>終了時刻</label>
+                <input type="time" name="end_time" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>内容（任意）</label>
+            <input type="text" name="label" placeholder="例：授業、バイト">
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
+            <button type="submit" class="btn">登録する</button>
+            <a href="{% url 'scheduler:calendar' group.slug %}" class="btn btn-outline">← 戻る</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

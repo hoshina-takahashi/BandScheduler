@@ -1,0 +1,243 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --surface2: #22222f;
+    --border: #2e2e40;
+    --accent: #7c6ff7;
+    --accent-light: #a99ff9;
+    --green: #4ade80;
+    --text: #e8e8f0;
+    --text-muted: #888899;
+    --radius: 12px;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+/* ヘッダー */
+.header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent-light);
+    text-decoration: none;
+}
+
+/* メインコンテンツ */
+.container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+/* 見出し */
+h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: var(--text);
+}
+
+h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 32px 0 12px;
+}
+
+/* カード */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 12px;
+}
+
+/* フォーム */
+.form-group {
+    margin-bottom: 16px;
+}
+
+label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="time"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus {
+    border-color: var(--accent);
+}
+
+/* ボタン */
+.btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.btn:hover {
+    opacity: 0.85;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+
+.btn-outline:hover {
+    border-color: var(--accent);
+    color: var(--accent-light);
+    opacity: 1;
+}
+
+/* グループリンク */
+.group-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color 0.2s;
+}
+
+.group-link:hover {
+    border-color: var(--accent);
+}
+
+.group-link-arrow {
+    color: var(--text-muted);
+    font-size: 18px;
+}
+
+/* 予定アイテム */
+.schedule-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.schedule-item:last-child {
+    border-bottom: none;
+}
+
+.schedule-user {
+    font-weight: 600;
+    min-width: 80px;
+}
+
+.schedule-time {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.schedule-label {
+    font-size: 12px;
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 2px 8px;
+    color: var(--text-muted);
+}
+
+/* 空き時間 */
+.free-slot {
+    display: inline-block;
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    color: var(--green);
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    margin: 4px 4px 4px 0;
+}
+
+.free-date {
+    font-weight: 600;
+    margin: 16px 0 8px;
+    color: var(--text);
+}
+
+/* URL共有エリア */
+.url-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 24px;
+}
+
+.url-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
+}
+
+/* 空状態 */
+.empty {
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 20px 0;
+}
