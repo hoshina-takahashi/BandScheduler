@@ -1,0 +1,23 @@
+<!-- scheduler/templates/scheduler/room_create.html -->
+{% extends 'scheduler/base.html' %}
+
+{% block title %}ルームを作成 — BandScheduler{% endblock %}
+
+{% block content %}
+<div class="form-container">
+  <h2>新しいルームを作成</h2>
+  <p>ルーム名を入力してください。あとでURLを共有してメンバーを招待できます。</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label>{{ form.name.label }}</label>
+      {{ form.name }}
+      {% if form.name.errors %}
+        <p class="error">{{ form.name.errors.0 }}</p>
+      {% endif %}
+    </div>
+    <button type="submit" class="btn-primary">ルームを作成する</button>
+  </form>
+</div>
+{% endblock %}

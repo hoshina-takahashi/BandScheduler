@@ -1,0 +1,14 @@
+<!-- scheduler/templates/scheduler/top.html -->
+{% extends 'scheduler/base.html' %}
+
+{% block title %}BandScheduler — バンドの日程調整{% endblock %}
+
+{% block content %}
+<div class="hero">
+  <h1>バンドの日程調整を、もっとスムーズに。</h1>
+  <p>埋まっている時間を入力するだけ。<br>共通の空き時間を自動で見つけます。</p>
+  <a href="{% url 'scheduler:room_create' %}" class="btn-primary">
+    ルームを作成する →
+  </a>
+</div>
+{% endblock %}

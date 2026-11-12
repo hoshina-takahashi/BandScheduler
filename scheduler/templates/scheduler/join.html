@@ -1,0 +1,32 @@
+<!-- scheduler/templates/scheduler/join.html -->
+{% extends 'scheduler/base.html' %}
+
+{% block title %}参加 — {{ room.name }}{% endblock %}
+
+{% block content %}
+<div class="form-container">
+  <h2>{{ room.name }}</h2>
+  <p>あなたの名前を入力して参加してください。</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label>{{ form.name.label }}</label>
+      {{ form.name }}
+      {% if form.name.errors %}
+        <p class="error">{{ form.name.errors.0 }}</p>
+      {% endif %}
+    </div>
+    <button type="submit" class="btn-primary">参加する</button>
+  </form>
+
+  <div class="member-list">
+    <p>参加中のメンバー（{{ room.members.count }}人）</p>
+    {% for member in room.members.all %}
+      <span class="member-chip">{{ member.name }}</span>
+    {% empty %}
+      <span style="color: #999;">まだ誰もいません</span>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

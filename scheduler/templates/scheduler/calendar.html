@@ -1,0 +1,363 @@
+{% extends 'scheduler/base.html' %}
+{% block title %}{{ room.name }} — BandScheduler{% endblock %}
+
+{% block content %}
+<div class="calendar-container">
+
+  <div class="calendar-header">
+    <div>
+      <h2>{{ room.name }}</h2>
+      <div class="member-chips">
+        {% for member in members %}
+          <span class="member-chip {% if member == current_member %}active{% endif %}">
+            {{ member.name }}{% if member == current_member %}（自分）{% endif %}
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="share-box">
+        <span>招待URL</span>
+        <button onclick="copyUrl()" class="btn-small">コピー</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 週ナビゲーション -->
+  <div class="week-nav">
+    <a href="?week={{ week_offset|add:'-1' }}" class="btn-small">◀ 前の週</a>
+    <span class="week-label">
+      {{ days.0|date:"Y年n月j日" }} 〜 {{ days.6|date:"n月j日" }}
+    </span>
+    <a href="?week={{ week_offset|add:'1' }}" class="btn-small">次の週 ▶</a>
+  </div>
+
+  <!-- カレンダーグリッド -->
+  <div class="cal-scroll">
+    <div class="cal-grid" id="cal-grid">
+
+      <!-- ヘッダー行（曜日） -->
+      <div class="cal-corner"></div>
+      {% for day in days %}
+        <div class="cal-head {% if day == today %}today{% endif %}">
+          <span class="day-name">{{ day|date:"D"|slice:":1" }}</span>
+          <span class="day-num">{{ day|date:"j" }}</span>
+        </div>
+      {% endfor %}
+
+      <!-- 時間行 -->
+      {% for hour in "0123456789012345678"|make_list %}{% endfor %}
+    </div>
+  </div>
+
+<!-- 定期予定パネル -->
+  <div class="recurring-panel">
+    <div class="recurring-header" onclick="toggleRecurring()">
+      <span>📅 定期予定の設定</span>
+      <span id="recurring-toggle-icon">▼</span>
+    </div>
+    <div id="recurring-body" style="display:none">
+      <p style="font-size:.85rem;color:#666;margin-bottom:1rem">
+        毎週繰り返す予定（授業・バイトなど）を登録すると、全週に自動反映されます。
+      </p>
+
+      <!-- 定期予定一覧 -->
+      <div id="recurring-list"></div>
+
+      <!-- 追加フォーム -->
+      <div class="recurring-form">
+        <select id="r-weekday">
+          <option value="0">月曜日</option>
+          <option value="1">火曜日</option>
+          <option value="2">水曜日</option>
+          <option value="3">木曜日</option>
+          <option value="4">金曜日</option>
+          <option value="5">土曜日</option>
+          <option value="6">日曜日</option>
+        </select>
+        <input type="time" id="r-start" value="09:00" step="3600">
+        <span style="color:#666">〜</span>
+        <input type="time" id="r-end" value="10:00" step="3600">
+        <input type="text" id="r-label" placeholder="予定名（例：授業）" style="flex:1">
+        <button onclick="addRecurring()" class="btn-primary" style="white-space:nowrap">追加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 凡例 -->
+  <div class="legend">
+    <div class="leg-item"><div class="leg-dot mine"></div>自分の予定</div>
+    <div class="leg-item"><div class="leg-dot mine" style="opacity:.5"></div>自分の定期予定</div>
+    <div class="leg-item"><div class="leg-dot other"></div>他のメンバーの予定</div>
+    <div class="leg-item"><div class="leg-dot free"></div>全員空き</div>
+  </div>
+
+</div>
+
+<!-- 予定入力モーダル -->
+<div id="modal-overlay" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3 id="modal-title">予定を追加</h3>
+    <p id="modal-subtitle" style="color:#666;font-size:.9rem;margin-bottom:1rem"></p>
+    <div class="field">
+      <label>予定名（任意）</label>
+      <input type="text" id="modal-label" placeholder="例：授業、バイト">
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeModal()" class="btn-cancel">キャンセル</button>
+      <button onclick="saveSchedule()" class="btn-primary">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Djangoから渡されたデータ
+const SCHEDULES = {{ schedules_json|safe }};
+const ROOM_ID = '{{ room.id }}';
+const CURRENT_MEMBER_ID = {{ current_member.id }};
+const DAYS = [{% for day in days %}'{{ day|date:"Y-m-d" }}',{% endfor %}];
+const CSRF_TOKEN = '{{ csrf_token }}';
+const ROOM_URL = '{{ request.build_absolute_uri }}';
+const HOURS = Array.from({length: 15}, (_, i) => i + 8);
+const MEMBERS_COUNT = {{ members.count }};
+
+let MY_RECURRING = {{ recurring_json|safe }};
+let pendingCell = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildGrid();
+  renderSchedules();
+  renderRecurringList();
+});
+
+function buildGrid() {
+  const grid = document.getElementById('cal-grid');
+  HOURS.forEach(hour => {
+    const label = document.createElement('div');
+    label.className = 'time-label';
+    label.textContent = `${hour}:00`;
+    grid.appendChild(label);
+    DAYS.forEach(dateStr => {
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      cell.dataset.date = dateStr;
+      cell.dataset.hour = hour;
+      cell.addEventListener('click', () => onCellClick(dateStr, hour));
+      grid.appendChild(cell);
+    });
+  });
+}
+
+function renderSchedules() {
+  document.querySelectorAll('.cal-cell').forEach(cell => {
+    cell.innerHTML = '';
+    cell.classList.remove('free-all');
+  });
+
+  SCHEDULES.forEach(s => {
+    const startHour = parseInt(s.start_time.split(':')[0]);
+    const endHour = parseInt(s.end_time.split(':')[0]);
+    for (let h = startHour; h < endHour; h++) {
+      const cell = findCell(s.date, h);
+      if (!cell) continue;
+      const block = document.createElement('div');
+      // 定期予定は半透明で区別
+      block.className = `busy-block ${s.is_mine ? 'mine' : 'other'}${s.is_recurring ? ' recurring' : ''}`;
+      block.textContent = s.label || s.member_name;
+      if (s.is_mine) {
+        block.title = s.is_recurring ? '定期予定（下のパネルから削除）' : 'クリックで削除';
+        if (!s.is_recurring) {
+          block.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`「${s.label || s.start_time + '〜' + s.end_time}」を削除しますか？`)) {
+              deleteSchedule(s.id);
+            }
+          });
+        }
+      }
+      cell.appendChild(block);
+    }
+  });
+
+  highlightFreeSlots();
+}
+
+function highlightFreeSlots() {
+  HOURS.forEach(hour => {
+    DAYS.forEach(dateStr => {
+      const cell = findCell(dateStr, hour);
+      if (!cell) return;
+      const busyMembers = new Set(
+        SCHEDULES.filter(s => {
+          const sh = parseInt(s.start_time.split(':')[0]);
+          const eh = parseInt(s.end_time.split(':')[0]);
+          return s.date === dateStr && sh <= hour && hour < eh;
+        }).map(s => s.member_id)
+      );
+      const allMembers = new Set(SCHEDULES.map(s => s.member_id));
+      if (allMembers.size === MEMBERS_COUNT && busyMembers.size === 0) {
+        cell.classList.add('free-all');
+      }
+    });
+  });
+}
+
+function findCell(dateStr, hour) {
+  return document.querySelector(`.cal-cell[data-date="${dateStr}"][data-hour="${hour}"]`);
+}
+
+function onCellClick(dateStr, hour) {
+  const alreadyBusy = SCHEDULES.some(s => {
+    const sh = parseInt(s.start_time.split(':')[0]);
+    const eh = parseInt(s.end_time.split(':')[0]);
+    return s.is_mine && s.date === dateStr && sh <= hour && hour < eh;
+  });
+  if (alreadyBusy) return;
+
+  pendingCell = { date: dateStr, hour };
+  const dateLabel = new Date(dateStr + 'T00:00:00')
+    .toLocaleDateString('ja-JP', {month:'long', day:'numeric', weekday:'short'});
+  document.getElementById('modal-title').textContent = '予定を追加';
+  document.getElementById('modal-subtitle').textContent =
+    `${dateLabel}  ${hour}:00 〜 ${hour + 1}:00`;
+  document.getElementById('modal-label').value = '';
+  document.getElementById('modal-overlay').style.display = 'flex';
+  document.getElementById('modal-label').focus();
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  pendingCell = null;
+}
+
+async function saveSchedule() {
+  if (!pendingCell) return;
+  const label = document.getElementById('modal-label').value;
+  const { date, hour } = pendingCell;
+  const res = await fetch(`/room/${ROOM_ID}/schedule/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify({
+      action: 'add', date,
+      start_time: `${String(hour).padStart(2,'0')}:00`,
+      end_time: `${String(hour+1).padStart(2,'0')}:00`,
+      label,
+    }),
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    SCHEDULES.push({
+      id: data.id, member_id: CURRENT_MEMBER_ID, member_name: '自分',
+      date, start_time: `${String(hour).padStart(2,'0')}:00`,
+      end_time: `${String(hour+1).padStart(2,'0')}:00`,
+      label, is_mine: true, is_recurring: false,
+    });
+    closeModal();
+    renderSchedules();
+  }
+}
+
+async function deleteSchedule(scheduleId) {
+  const res = await fetch(`/room/${ROOM_ID}/schedule/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify({action: 'delete', id: scheduleId}),
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    const idx = SCHEDULES.findIndex(s => s.id === scheduleId);
+    if (idx !== -1) SCHEDULES.splice(idx, 1);
+    renderSchedules();
+  }
+}
+
+// --- 定期予定 ---
+
+function toggleRecurring() {
+  const body = document.getElementById('recurring-body');
+  const icon = document.getElementById('recurring-toggle-icon');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  icon.textContent = isOpen ? '▼' : '▲';
+}
+
+function renderRecurringList() {
+  const list = document.getElementById('recurring-list');
+  if (MY_RECURRING.length === 0) {
+    list.innerHTML = '<p style="font-size:.85rem;color:#aaa;margin-bottom:.75rem">定期予定はまだありません</p>';
+    return;
+  }
+  list.innerHTML = MY_RECURRING.map(r => `
+    <div class="recurring-item">
+      <span class="recurring-badge">${r.weekday_label}</span>
+      <span>${r.start_time} 〜 ${r.end_time}</span>
+      <span style="color:#666">${r.label || ''}</span>
+      <button onclick="deleteRecurring(${r.id})" class="btn-delete">削除</button>
+    </div>
+  `).join('');
+}
+
+async function addRecurring() {
+  const weekday = parseInt(document.getElementById('r-weekday').value);
+  const start = document.getElementById('r-start').value;
+  const end = document.getElementById('r-end').value;
+  const label = document.getElementById('r-label').value;
+
+  if (start >= end) {
+    alert('終了時刻は開始時刻より後にしてください');
+    return;
+  }
+
+  const res = await fetch(`/room/${ROOM_ID}/schedule/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify({action: 'add_recurring', weekday, start_time: start, end_time: end, label}),
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    MY_RECURRING.push({
+      id: data.id, weekday, weekday_label: data.weekday_label,
+      start_time: start, end_time: end, label,
+    });
+    // カレンダーにも即反映
+    DAYS.forEach(dateStr => {
+      const d = new Date(dateStr + 'T00:00:00');
+      if (d.getDay() === (weekday + 1) % 7 ||
+          (weekday === 6 && d.getDay() === 0) ||
+          (weekday < 6 && d.getDay() === weekday + 1)) return;
+      // weekday(0=月)→getDay(0=日)変換
+    });
+    renderRecurringList();
+    // ページリロードで定期予定をカレンダーに反映
+    location.reload();
+  }
+}
+
+async function deleteRecurring(recurringId) {
+  if (!confirm('この定期予定を削除しますか？')) return;
+  const res = await fetch(`/room/${ROOM_ID}/schedule/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify({action: 'delete_recurring', id: recurringId}),
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    MY_RECURRING = MY_RECURRING.filter(r => r.id !== recurringId);
+    renderRecurringList();
+    location.reload();
+  }
+}
+
+function copyUrl() {
+  navigator.clipboard.writeText(ROOM_URL).then(() => alert('招待URLをコピーしました！'));
+}
+
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('modal-label').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') saveSchedule();
+});
+
+</script>
+{% endblock %}
