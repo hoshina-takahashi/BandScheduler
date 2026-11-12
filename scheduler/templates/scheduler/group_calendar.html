@@ -1,0 +1,151 @@
+{% extends 'scheduler/base.html' %}
+{% block title %}{{ room.name }} — BandScheduler{% endblock %}
+{% block body %}
+<div class="top-bar" style="gap:8px;">
+  <a href="{% url 'group_list' %}" class="icon-btn">←</a>
+  <h1 style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ room.name }}</h1>
+  <button class="icon-btn" onclick="shareRoom()" title="URLをコピー">🔗</button>
+</div>
+<div class="scroll-area">
+
+  <!-- Members -->
+  <div class="card" style="padding:12px 16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:600;color:var(--muted);">メンバー</span>
+      <span class="text-muted" style="font-size:12px;">{{ members|length }}人参加中</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      {% for m in members %}
+      <div class="member-chip {% if m.user == request.user %}self{% endif %}">
+        {{ m.name }}{% if m.user == request.user %} (自分){% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Candidate dates / availability -->
+  {% if candidate_dates %}
+  <div class="card-title" style="margin-top:8px;">候補日の空き状況</div>
+  {% for item in candidate_data %}
+  <div class="cand-row">
+    <div class="cand-row-date">
+      <div style="font-weight:600;">{{ item.date_str }}</div>
+      <div class="text-muted" style="font-size:12px;">{{ item.weekday }}</div>
+    </div>
+    <div class="cand-avail-bar">
+      <div class="avail-track">
+        {% for slot in item.slots %}
+        <div class="avail-cell {{ slot.status }}" title="{{ slot.time }}"></div>
+        {% endfor %}
+      </div>
+      <div class="avail-count">
+        {% if item.all_free_count > 0 %}
+        <span class="badge all-free">全員OK {{ item.all_free_count }}枠</span>
+        {% else %}
+        <span class="text-muted" style="font-size:12px;">全員揃う枠なし</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+
+  <!-- Week calendar if no candidate dates -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <a href="?week={{ prev_week }}" class="icon-btn">‹ 前の週</a>
+    <span style="font-size:13px;font-weight:600;">{{ week_label }}</span>
+    <a href="?week={{ next_week }}" class="icon-btn">次の週 ›</a>
+  </div>
+
+  <div class="cal-grid group-cal">
+    <div class="cal-time-col"></div>
+    {% for d in days %}
+    <div class="cal-header {% if d.is_today %}today{% endif %}">
+      <div class="cal-weekday">{{ d.weekday }}</div>
+      <div class="cal-date">{{ d.day }}</div>
+    </div>
+    {% endfor %}
+    {% for hour in hours %}
+    <div class="cal-time">{{ hour }}:00</div>
+    {% for d in days %}
+    <div class="cal-cell {% if d.is_today %}today{% endif %}"
+         data-date="{{ d.date }}" data-hour="{{ hour }}">
+      {% for sched in d.schedules %}
+        {% if sched.start_hour == hour %}
+        <div class="sched-block {{ sched.type }}" style="height:{{ sched.height }}px;">
+          <div class="sched-label">{{ sched.label }}</div>
+        </div>
+        {% endif %}
+      {% endfor %}
+      {% if d.all_free_hours|yesno:"," %}
+        {% if hour in d.all_free_hours %}
+        <div class="all-free-mark"></div>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot self"></span>自分</span>
+    <span class="legend-item"><span class="legend-dot other"></span>他のメンバー</span>
+    <span class="legend-item"><span class="legend-dot free"></span>全員空き</span>
+  </div>
+  {% endif %}
+</div>
+
+<input type="hidden" id="room-id" value="{{ room.id }}">
+
+<style>
+.member-chip {
+  padding: 4px 10px; border-radius: 20px; font-size: 13px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.member-chip.self { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cand-row {
+  display: flex; gap: 10px; padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cand-row:last-child { border-bottom: none; }
+.cand-row-date { width: 56px; flex-shrink: 0; }
+.cand-avail-bar { flex: 1; }
+.avail-track { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 4px; }
+.avail-cell {
+  width: 10px; height: 10px; border-radius: 2px;
+  background: var(--border);
+}
+.avail-cell.free { background: var(--green); }
+.avail-cell.busy { background: var(--red, #ef4444); }
+.avail-cell.partial { background: var(--yellow, #f59e0b); }
+.avail-count { margin-top: 4px; }
+.badge.all-free { background: var(--green); color: #fff; }
+.group-cal { font-size: 11px; }
+.sched-block { border-radius: 4px; overflow: hidden; padding: 2px 3px; margin: 1px 0; }
+.sched-block.self-sched { background: var(--accent); color: #fff; }
+.sched-block.other-sched { background: #94a3b8; color: #fff; }
+.sched-block.recurring-sched { background: #818cf8; color: #fff; }
+.all-free-mark { position:absolute;inset:0;background:rgba(34,197,94,.18);pointer-events:none; }
+.cal-cell { position:relative; }
+.legend { display:flex;gap:16px;justify-content:center;margin-top:12px;font-size:13px; }
+.legend-item { display:flex;align-items:center;gap:4px; }
+.legend-dot { width:10px;height:10px;border-radius:2px; }
+.legend-dot.self { background:var(--accent); }
+.legend-dot.other { background:#94a3b8; }
+.legend-dot.free { background:var(--green); }
+</style>
+
+<script>
+function shareRoom() {
+  const url = location.href.replace('/calendar/', '/').replace(location.pathname, '')
+    + '/room/{{ room.id }}/join/';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert('招待URLをコピーしました！\n' + url);
+    });
+  } else {
+    prompt('URLをコピーしてシェアしてください:', url);
+  }
+}
+</script>
+{% endblock %}

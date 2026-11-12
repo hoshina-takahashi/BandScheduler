@@ -1,0 +1,150 @@
+{% extends 'scheduler/base.html' %}
+{% block title %}定期予定 — BandScheduler{% endblock %}
+{% block body %}
+<div class="top-bar">
+  <h1>定期予定</h1>
+  <button class="icon-btn" onclick="document.getElementById('add-modal').hidden=false">＋</button>
+</div>
+<div class="scroll-area">
+  <div class="card">
+    <div class="card-title">週間グリッド（タップで埋める）</div>
+    <div class="week-grid-wrap">
+      <div class="week-grid" id="week-grid"></div>
+    </div>
+  </div>
+  <div class="section-title">登録済み定期予定</div>
+  <div class="card">
+    <div class="recurring-list" id="recurring-list">
+      <div class="empty-state"><div class="empty-icon">🔁</div><p>定期予定がまだありません</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 追加モーダル -->
+<div class="modal-overlay" id="add-modal" hidden>
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('add-modal').hidden=true">×</button>
+    <div class="modal-title">定期予定を追加</div>
+    <div class="form-group">
+      <label class="form-label">予定名</label>
+      <input type="text" class="form-input" id="new-label" placeholder="例: ゼミ、アルバイト">
+    </div>
+    <div class="form-group">
+      <label class="form-label">曜日</label>
+      <select class="form-input" id="new-weekday">
+        <option value="0">月曜日</option><option value="1">火曜日</option>
+        <option value="2">水曜日</option><option value="3">木曜日</option>
+        <option value="4">金曜日</option><option value="5">土曜日</option>
+        <option value="6">日曜日</option>
+      </select>
+    </div>
+    <div class="date-row form-group">
+      <div>
+        <label class="form-label">開始</label>
+        <input type="time" class="form-input" id="new-start" value="09:00">
+      </div>
+      <div>
+        <label class="form-label">終了</label>
+        <input type="time" class="form-input" id="new-end" value="11:00">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addRecurring()">追加する</button>
+  </div>
+</div>
+
+<script>
+let RECURRING = {{ recurring_json|safe }};
+const HOURS = [9,10,11,12,13,14,15,16,17,18,19,20,21];
+const DAY_LABELS = ['月','火','水','木','金','土','日'];
+
+function buildGrid() {
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = '';
+  // Header row
+  grid.appendChild(Object.assign(document.createElement('div'), {})); // empty corner
+  DAY_LABELS.forEach(d => {
+    const h = document.createElement('div');
+    h.className = 'wg-header'; h.textContent = d;
+    grid.appendChild(h);
+  });
+  // Time rows
+  HOURS.forEach(h => {
+    const timeEl = document.createElement('div');
+    timeEl.className = 'wg-time';
+    timeEl.textContent = h;
+    grid.appendChild(timeEl);
+    for (let wd = 0; wd < 7; wd++) {
+      const cell = document.createElement('div');
+      cell.className = 'wg-cell';
+      const start = `${String(h).padStart(2,'0')}:00`;
+      const end = `${String(h+1).padStart(2,'0')}:00`;
+      const isFilled = RECURRING.some(r => r.weekday === wd &&
+        r.start_time <= start && r.end_time > start);
+      if (isFilled) cell.classList.add('filled');
+      cell.onclick = () => {
+        if (cell.classList.contains('filled')) return;
+        document.getElementById('new-weekday').value = wd;
+        document.getElementById('new-start').value = start;
+        document.getElementById('new-end').value = end;
+        document.getElementById('add-modal').hidden = false;
+      };
+      grid.appendChild(cell);
+    }
+  });
+}
+
+function renderList() {
+  const list = document.getElementById('recurring-list');
+  if (!RECURRING.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🔁</div><p>定期予定がまだありません</p></div>';
+    return;
+  }
+  list.innerHTML = RECURRING.map(r => `
+    <div class="recurring-item" id="ri-${r.id}">
+      <div class="ri-dot"></div>
+      <div class="ri-info">
+        <div class="ri-name">${r.label || '定期予定'}</div>
+        <div class="ri-time">${r.weekday_label} ${r.start_time}〜${r.end_time}</div>
+      </div>
+      <button class="ri-del" onclick="deleteRecurring(${r.id})">×</button>
+    </div>`).join('');
+}
+
+async function addRecurring() {
+  const label = document.getElementById('new-label').value;
+  const weekday = parseInt(document.getElementById('new-weekday').value);
+  const start = document.getElementById('new-start').value;
+  const end = document.getElementById('new-end').value;
+  if (!start || !end) return;
+
+  const res = await fetch('/api/personal-recurring/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+    body: JSON.stringify({action: 'add', weekday, start_time: start, end_time: end, label})
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    RECURRING.push({id: data.id, weekday, weekday_label: data.weekday_label, start_time: start, end_time: end, label});
+    document.getElementById('add-modal').hidden = true;
+    buildGrid(); renderList();
+  }
+}
+
+async function deleteRecurring(id) {
+  await fetch('/api/personal-recurring/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+    body: JSON.stringify({action: 'delete', id})
+  });
+  RECURRING = RECURRING.filter(r => r.id !== id);
+  buildGrid(); renderList();
+}
+
+function getCookie(name) {
+  return document.cookie.split(';').map(c => c.trim())
+    .find(c => c.startsWith(name + '='))?.split('=')[1] ?? '';
+}
+
+buildGrid(); renderList();
+</script>
+{% endblock %}

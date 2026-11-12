@@ -1,0 +1,38 @@
+{% extends 'scheduler/base.html' %}
+{% block title %}グループ一覧 — BandScheduler{% endblock %}
+{% block body %}
+<div class="top-bar"><h1>グループ一覧</h1></div>
+<div class="scroll-area">
+  {% if rooms %}
+    {% for room in rooms %}
+    <a href="{% url 'group_calendar' room.room.id %}" class="group-card-link">
+      <div class="card group-card">
+        <div class="group-card-header">
+          <span class="group-name">{{ room.room.name }}</span>
+          <span class="badge">参加中</span>
+        </div>
+        {% if room.room.candidate_dates %}
+        <div class="text-muted" style="margin-top:6px;font-size:13px;">
+          候補日 {{ room.room.candidate_dates|length }}日間
+          {% if room.room.start_date and room.room.end_date %}
+          · {{ room.room.start_date }} 〜 {{ room.room.end_date }}
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="text-muted" style="margin-top:4px;font-size:12px;">
+          メンバー {{ room.room.members.count }}人
+          {% if room.room.created_by == request.user %}<span style="margin-left:6px;color:var(--accent);">👑 主催</span>{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <div style="font-size:48px;margin-bottom:12px;">🎸</div>
+      <div style="font-weight:600;margin-bottom:6px;">まだグループがありません</div>
+      <div class="text-muted">グループを作成するか、URLから参加しましょう</div>
+      <a href="{% url 'group_create' %}" class="btn-primary" style="display:inline-block;margin-top:16px;">グループを作成</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

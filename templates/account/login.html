@@ -1,0 +1,28 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ログイン — BandScheduler</title>
+  <link rel="stylesheet" href="{% static 'scheduler/css/style.css' %}">
+</head>
+<body>
+<div class="app-wrapper">
+  <div class="login-page">
+    <div class="login-logo">🎸</div>
+    <div class="login-title">BandScheduler</div>
+    <div class="login-subtitle">バンドメンバーの<br>空き時間を一瞬で見つける</div>
+
+    <a href="{% url 'google_login' %}" class="btn-google">
+      <span class="google-icon">🌐</span>
+      Googleでログイン
+    </a>
+
+    <p class="text-muted mt-4" style="text-align:center;max-width:280px;">
+      Googleアカウントで安全にサインイン。<br>登録不要ですぐ使えます。
+    </p>
+  </div>
+</div>
+</body>
+</html>

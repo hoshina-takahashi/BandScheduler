@@ -1,32 +1,42 @@
-<!-- scheduler/templates/scheduler/join.html -->
 {% extends 'scheduler/base.html' %}
-
-{% block title %}参加 — {{ room.name }}{% endblock %}
-
-{% block content %}
-<div class="form-container">
-  <h2>{{ room.name }}</h2>
-  <p>あなたの名前を入力して参加してください。</p>
-
-  <form method="post">
-    {% csrf_token %}
-    <div class="field">
-      <label>{{ form.name.label }}</label>
-      {{ form.name }}
-      {% if form.name.errors %}
-        <p class="error">{{ form.name.errors.0 }}</p>
-      {% endif %}
+{% block title %}グループに参加 — BandScheduler{% endblock %}
+{% block body %}
+<div class="scroll-area" style="display:flex;align-items:center;justify-content:center;min-height:calc(100dvh - 80px);">
+  <div style="width:100%;max-width:360px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:48px;margin-bottom:8px;">🎵</div>
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0 0 6px;">グループに参加</h2>
+      <p class="text-muted">{{ room.name }}</p>
     </div>
-    <button type="submit" class="btn-primary">参加する</button>
-  </form>
 
-  <div class="member-list">
-    <p>参加中のメンバー（{{ room.members.count }}人）</p>
-    {% for member in room.members.all %}
-      <span class="member-chip">{{ member.name }}</span>
-    {% empty %}
-      <span style="color: #999;">まだ誰もいません</span>
-    {% endfor %}
+    {% if already_member %}
+    <div class="card" style="text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">✅</div>
+      <div style="font-weight:600;margin-bottom:4px;">参加済みです</div>
+      <div class="text-muted" style="margin-bottom:16px;">すでにこのグループに参加しています</div>
+      <a href="{% url 'group_calendar' room.id %}" class="btn-primary" style="display:block;">カレンダーを開く</a>
+    </div>
+    {% else %}
+    <div class="card">
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label class="form-label">グループ内での名前</label>
+          <input type="text" name="name" class="form-input"
+            value="{{ suggested_name }}"
+            placeholder="例: hoshina" required>
+          <div class="text-muted" style="font-size:12px;margin-top:4px;">Googleアカウントの名前が入力されています</div>
+        </div>
+        <button type="submit" class="btn-primary">参加する</button>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top:12px;background:transparent;border:1px dashed var(--border);">
+      <div class="text-muted" style="font-size:13px;text-align:center;">
+        参加後、自分のマイカレンダーの予定が<br>このグループに反映されます
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

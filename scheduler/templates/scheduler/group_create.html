@@ -1,0 +1,150 @@
+{% extends 'scheduler/base.html' %}
+{% block title %}グループ作成 — BandScheduler{% endblock %}
+{% block body %}
+<div class="top-bar"><h1>グループ作成</h1></div>
+<div class="scroll-area">
+  <div class="steps">
+    <div class="step-dot active" id="dot1"></div>
+    <div class="step-dot" id="dot2"></div>
+    <div class="step-dot" id="dot3"></div>
+  </div>
+
+  <form method="post" id="create-form">
+    {% csrf_token %}
+    <!-- Step 1 -->
+    <div id="step1">
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">グループ名</label>
+          <input type="text" name="name" class="form-input" placeholder="例: 秋ライブ練習スケジュール" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">メンバー募集期間</label>
+          <div class="date-row">
+            <div>
+              <label class="form-label">開始日</label>
+              <input type="date" name="start_date" class="form-input" id="cal-start">
+            </div>
+            <div>
+              <label class="form-label">終了日</label>
+              <input type="date" name="end_date" class="form-input" id="cal-end">
+            </div>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn-primary" onclick="goStep(2)">次へ →</button>
+    </div>
+
+    <!-- Step 2: Candidate dates -->
+    <div id="step2" hidden>
+      <div class="card">
+        <div class="card-title">候補日を選択（複数可）</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <button type="button" class="icon-btn" onclick="prevMonth()">‹</button>
+          <span id="cal-month-label" style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;"></span>
+          <button type="button" class="icon-btn" onclick="nextMonth()">›</button>
+        </div>
+        <div class="cand-grid">
+          <div class="cand-header">日</div><div class="cand-header">月</div>
+          <div class="cand-header">火</div><div class="cand-header">水</div>
+          <div class="cand-header">木</div><div class="cand-header">金</div>
+          <div class="cand-header">土</div>
+        </div>
+        <div class="cand-grid" id="cand-days" style="margin-top:4px;"></div>
+        <div id="selected-count" class="text-muted" style="margin-top:10px;"></div>
+        <div id="selected-dates-hidden"></div>
+      </div>
+      <button type="button" class="btn-primary" onclick="goStep(3)">次へ →</button>
+      <button type="button" class="btn-outline" style="margin-top:8px;" onclick="goStep(1)">← 戻る</button>
+    </div>
+
+    <!-- Step 3: Confirm -->
+    <div id="step3" hidden>
+      <div class="card">
+        <div class="card-title">確認</div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <div class="text-muted">グループ名</div>
+          <div id="confirm-name" style="font-weight:600;margin-top:2px;"></div>
+        </div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <div class="text-muted">募集期間</div>
+          <div id="confirm-period" style="font-weight:600;margin-top:2px;"></div>
+        </div>
+        <div style="padding:8px 0;">
+          <div class="text-muted">候補日（<span id="confirm-count">0</span>日間）</div>
+          <div id="confirm-dates" style="margin-top:4px;line-height:2;"></div>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary">グループを作成して共有 🔗</button>
+      <button type="button" class="btn-outline" style="margin-top:8px;" onclick="goStep(2)">← 戻る</button>
+      <p class="text-muted" style="text-align:center;margin-top:10px;">URLが発行され、メンバーに共有できます</p>
+    </div>
+  </form>
+</div>
+
+<script>
+let selectedDates = new Set();
+let calYear, calMonth;
+
+function initCal() {
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth();
+  renderCal();
+}
+
+function prevMonth() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCal(); }
+function nextMonth() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCal(); }
+
+function renderCal() {
+  document.getElementById('cal-month-label').textContent = `${calYear}年${calMonth + 1}月`;
+  const grid = document.getElementById('cand-days');
+  grid.innerHTML = '';
+  const first = new Date(calYear, calMonth, 1).getDay();
+  const days = new Date(calYear, calMonth + 1, 0).getDate();
+  for (let i = 0; i < first; i++) {
+    const el = document.createElement('div'); el.className = 'cand-num empty'; grid.appendChild(el);
+  }
+  for (let d = 1; d <= days; d++) {
+    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const el = document.createElement('div');
+    el.className = 'cand-num' + (selectedDates.has(ds) ? ' selected' : '');
+    el.textContent = d;
+    el.onclick = () => {
+      if (selectedDates.has(ds)) selectedDates.delete(ds); else selectedDates.add(ds);
+      renderCal(); updateCount();
+    };
+    grid.appendChild(el);
+  }
+}
+
+function updateCount() {
+  document.getElementById('selected-count').textContent = `選択中：${selectedDates.size}日間`;
+}
+
+function goStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById(`step${i}`).hidden = (i !== n);
+    document.getElementById(`dot${i}`).className = 'step-dot' + (i === n ? ' active' : '');
+  });
+  if (n === 3) fillConfirm();
+}
+
+function fillConfirm() {
+  const form = document.getElementById('create-form');
+  document.getElementById('confirm-name').textContent = form.querySelector('[name=name]').value;
+  const s = form.querySelector('[name=start_date]').value;
+  const e = form.querySelector('[name=end_date]').value;
+  document.getElementById('confirm-period').textContent = (s && e) ? `${s} 〜 ${e}` : '指定なし';
+  const sorted = [...selectedDates].sort();
+  document.getElementById('confirm-count').textContent = sorted.length;
+  document.getElementById('confirm-dates').innerHTML = sorted.map(d =>
+    `<span class="candidate-date-btn active">${d}</span>`).join('');
+  // Update hidden inputs
+  const container = document.getElementById('selected-dates-hidden');
+  container.innerHTML = sorted.map(d => `<input type="hidden" name="candidate_dates" value="${d}">`).join('');
+}
+
+initCal();
+</script>
+{% endblock %}

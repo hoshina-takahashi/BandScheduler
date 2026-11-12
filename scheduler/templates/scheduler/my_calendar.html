@@ -1,0 +1,178 @@
+{% extends 'scheduler/base.html' %}
+{% block title %}マイカレンダー — BandScheduler{% endblock %}
+{% block body %}
+<div class="top-bar">
+  <h1>マイカレンダー</h1>
+  <div class="top-bar-actions">
+    <button class="icon-btn" onclick="openAddModal()">＋</button>
+  </div>
+</div>
+
+<div class="scroll-area">
+  <!-- 週ナビ -->
+  <div class="card">
+    <div class="week-nav">
+      <button onclick="location.href='?week={{ week_offset|add:'-1' }}'">‹</button>
+      <span id="week-label"></span>
+      <button onclick="location.href='?week={{ week_offset|add:'1' }}'">›</button>
+    </div>
+    <div class="day-strip" id="day-strip"></div>
+  </div>
+
+  <!-- 選択日の予定 -->
+  <div class="section-title" id="selected-date-label">今日の予定</div>
+  <div class="card" id="schedule-list">
+    <div class="empty-state"><div class="empty-icon">📭</div><p>この日の予定はありません</p></div>
+  </div>
+</div>
+
+<!-- 追加モーダル -->
+<div class="modal-overlay" id="add-modal" hidden>
+  <div class="modal">
+    <button class="modal-close" onclick="closeAddModal()">×</button>
+    <div class="modal-title">予定を追加</div>
+    <div class="form-group">
+      <label class="form-label">予定名</label>
+      <input type="text" class="form-input" id="new-label" placeholder="例: ゼミ、アルバイト">
+    </div>
+    <div class="form-group">
+      <label class="form-label">日付</label>
+      <input type="date" class="form-input" id="new-date">
+    </div>
+    <div class="date-row form-group">
+      <div>
+        <label class="form-label">開始</label>
+        <input type="time" class="form-input" id="new-start" value="09:00">
+      </div>
+      <div>
+        <label class="form-label">終了</label>
+        <input type="time" class="form-input" id="new-end" value="11:00">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addSchedule()">追加する</button>
+  </div>
+</div>
+
+<script>
+const SCHEDULES = {{ schedules_json|safe }};
+const TODAY = '{{ today|date:"Y-m-d" }}';
+const WEEK_OFFSET = {{ week_offset }};
+const DAY_LABELS = ['日','月','火','水','木','金','土'];
+
+let selectedDate = TODAY;
+
+function buildWeek() {
+  const today = new Date(TODAY + 'T00:00:00');
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - today.getDay() + 1 + WEEK_OFFSET * 7);
+  // If today is Sunday, go back a week to get the right Monday
+  if (today.getDay() === 0) monday.setDate(monday.getDate() - 7);
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    days.push(d);
+  }
+
+  // Week label
+  const yr = days[0].getFullYear(), m = days[0].getMonth() + 1;
+  document.getElementById('week-label').textContent = `${yr}年${m}月`;
+
+  // Day strip
+  const strip = document.getElementById('day-strip');
+  strip.innerHTML = '';
+  days.forEach(d => {
+    const ds = fmtDate(d);
+    const hasDot = SCHEDULES.some(s => s.date === ds);
+    const isToday = ds === TODAY;
+    const cell = document.createElement('div');
+    cell.className = 'day-cell';
+    cell.innerHTML = `
+      <div class="day-label">${DAY_LABELS[d.getDay()]}</div>
+      <div class="day-num${isToday ? ' today' : ''}${ds === selectedDate && !isToday ? ' selected' : ''}">${d.getDate()}</div>
+      <div class="day-dot" style="opacity:${hasDot ? 1 : 0}"></div>`;
+    cell.onclick = () => { selectedDate = ds; buildWeek(); renderSchedules(); };
+    strip.appendChild(cell);
+  });
+}
+
+function fmtDate(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+function renderSchedules() {
+  const list = document.getElementById('schedule-list');
+  const label = document.getElementById('selected-date-label');
+  const d = new Date(selectedDate + 'T00:00:00');
+  const isToday = selectedDate === TODAY;
+  label.textContent = isToday
+    ? `今日の予定（${DAY_LABELS[d.getDay()]}・${d.getMonth()+1}/${d.getDate()}）`
+    : `${d.getMonth()+1}/${d.getDate()}（${DAY_LABELS[d.getDay()]}）の予定`;
+
+  const items = SCHEDULES.filter(s => s.date === selectedDate);
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>この日の予定はありません</p></div>';
+    return;
+  }
+  items.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  list.innerHTML = items.map(s => `
+    <div class="time-slot">
+      <div class="slot-time">${s.start_time}</div>
+      <div class="slot-event${s.is_recurring ? ' recurring' : ''}">
+        <span>${s.label || '予定'}</span>
+        ${!s.is_recurring ? `<button class="slot-del" onclick="deleteSchedule(${s.id}, this)">×</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function openAddModal() {
+  document.getElementById('new-date').value = selectedDate;
+  document.getElementById('add-modal').hidden = false;
+}
+function closeAddModal() { document.getElementById('add-modal').hidden = true; }
+
+async function addSchedule() {
+  const label = document.getElementById('new-label').value;
+  const date = document.getElementById('new-date').value;
+  const start = document.getElementById('new-start').value;
+  const end = document.getElementById('new-end').value;
+  if (!date || !start || !end) return;
+
+  const res = await fetch('/api/personal-schedule/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+    body: JSON.stringify({action: 'add', date, start_time: start, end_time: end, label})
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    SCHEDULES.push({id: data.id, date, start_time: start, end_time: end, label, is_recurring: false});
+    closeAddModal();
+    buildWeek();
+    renderSchedules();
+  }
+}
+
+async function deleteSchedule(id, btn) {
+  await fetch('/api/personal-schedule/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+    body: JSON.stringify({action: 'delete', id})
+  });
+  const idx = SCHEDULES.findIndex(s => s.id === id);
+  if (idx !== -1) SCHEDULES.splice(idx, 1);
+  buildWeek();
+  renderSchedules();
+}
+
+function getCookie(name) {
+  return document.cookie.split(';').map(c => c.trim())
+    .find(c => c.startsWith(name + '='))?.split('=')[1] ?? '';
+}
+
+buildWeek();
+renderSchedules();
+</script>
+{% endblock %}

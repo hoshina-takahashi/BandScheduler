@@ -1,19 +1,41 @@
-<!-- scheduler/templates/scheduler/base.html -->
+{% load static %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>{% block title %}BandScheduler{% endblock %}</title>
-  {% load static %}
   <link rel="stylesheet" href="{% static 'scheduler/css/style.css' %}">
+  {% block extra_head %}{% endblock %}
 </head>
-<body style="position: relative;">
-  <header>
-    <a href="{% url 'scheduler:top' %}" class="site-title">🎸 BandScheduler</a>
-  </header>
-  <main>
-    {% block content %}{% endblock %}
-  </main>
+<body>
+<div class="app-wrapper">
+  {% block body %}{% endblock %}
+
+  {% if user.is_authenticated %}
+  <nav class="bottom-nav">
+    <a href="{% url 'scheduler:my_calendar' %}" class="nav-item {% if current_tab == 'my_calendar' %}active{% endif %}">
+      <span class="nav-icon">📅</span>
+      <span class="nav-label">マイカレンダー</span>
+    </a>
+    <a href="{% url 'scheduler:recurring' %}" class="nav-item {% if current_tab == 'recurring' %}active{% endif %}">
+      <span class="nav-icon">🔁</span>
+      <span class="nav-label">定期予定</span>
+    </a>
+    <a href="{% url 'scheduler:group_create' %}" class="nav-item {% if current_tab == 'group_create' %}active{% endif %}">
+      <span class="nav-icon">➕</span>
+      <span class="nav-label">グループ作成</span>
+    </a>
+    <a href="{% url 'scheduler:group_list' %}" class="nav-item {% if current_tab == 'group_list' %}active{% endif %}">
+      <span class="nav-icon">🗂️</span>
+      <span class="nav-label">一覧</span>
+    </a>
+    <a href="{% url 'scheduler:user_settings' %}" class="nav-item {% if current_tab == 'user_settings' %}active{% endif %}">
+      <span class="nav-icon">👤</span>
+      <span class="nav-label">設定</span>
+    </a>
+  </nav>
+  {% endif %}
+</div>
 </body>
 </html>
