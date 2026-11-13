@@ -21,7 +21,7 @@
         {% endif %}
         <div class="text-muted" style="margin-top:4px;font-size:12px;">
           メンバー {{ room.room.members.count }}人
-          {% if room.room.created_by == request.user %}<span style="margin-left:6px;color:var(--accent);">👑 主催</span>{% endif %}
+          {% if room.room.created_by == request.user %}<span style="margin-left:6px;color:var(--accent);">👑 ホスト</span>{% endif %}
         </div>
       </div>
     </a>

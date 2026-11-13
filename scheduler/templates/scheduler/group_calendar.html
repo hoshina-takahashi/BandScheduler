@@ -5,6 +5,12 @@
   <a href="{% url 'scheduler:group_list' %}" class="icon-btn">←</a>
   <h1 style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ room.name }}</h1>
   <button class="icon-btn" onclick="shareRoom()" title="URLをコピー">🔗</button>
+  {% if room.created_by == request.user %}
+  <form method="post" action="{% url 'scheduler:group_delete' room.id %}" onsubmit="return confirm('このグループを削除しますか？')">
+    {% csrf_token %}
+    <button type="submit" class="icon-btn" title="グループを削除" style="color:#ef4444;">🗑</button>
+  </form>
+  {% endif %}
 </div>
 <div class="scroll-area">
 

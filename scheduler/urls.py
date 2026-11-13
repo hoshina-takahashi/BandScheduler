@@ -17,4 +17,5 @@ urlpatterns = [
     path('api/personal-schedule/', views.personal_schedule_api, name='personal_schedule_api'),
     path('api/personal-recurring/', views.personal_recurring_api, name='personal_recurring_api'),
     path('api/room/<uuid:room_id>/schedule/', views.schedule_save, name='schedule_save'),
+    path('room/<uuid:room_id>/delete/', views.group_delete, name='group_delete'),
 ]

@@ -284,3 +284,11 @@ def personal_recurring_api(request):
 def schedule_save(request, room_id):
     """旧API（後方互換用）"""
     return JsonResponse({'status': 'ok'})
+
+
+@login_required
+@require_POST
+def group_delete(request, room_id):
+    room = get_object_or_404(Room, id=room_id, created_by=request.user)
+    room.delete()
+    return redirect('scheduler:group_list')
