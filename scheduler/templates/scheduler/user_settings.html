@@ -27,7 +27,7 @@
       {% csrf_token %}
       <div class="form-group">
         <label class="form-label">表示名</label>
-        <input type="text" name="first_name" class="form-input" value="{{ user.first_name }}" placeholder="例: hoshina">
+        <input type="text" name="display_name" class="form-input" value="{{ user.first_name }}" placeholder="例: hoshina">
       </div>
       <button type="submit" class="btn-primary">保存</button>
     </form>
