@@ -10,6 +10,11 @@
     {% csrf_token %}
     <button type="submit" class="icon-btn" title="グループを削除" style="color:#ef4444;">🗑</button>
   </form>
+  {% else %}
+  <form method="post" action="{% url 'scheduler:group_leave' room.id %}" onsubmit="return confirm('このグループから退会しますか？')">
+    {% csrf_token %}
+    <button type="submit" class="icon-btn" title="退会" style="color:#ef4444;">退会</button>
+  </form>
   {% endif %}
 </div>
 <div class="scroll-area">
