@@ -148,6 +148,9 @@ def user_settings(request):
 
 # ==================== グループカレンダー ====================
 
+CALENDAR_HOURS = list(range(7, 23))  # 7:00〜22:00
+
+
 @login_required
 def group_calendar(request, room_id):
     room = get_object_or_404(Room, id=room_id)
@@ -159,46 +162,113 @@ def group_calendar(request, room_id):
         return redirect('scheduler:join', room_id=room.id)
 
     week_offset = int(request.GET.get('week', 0))
-    days = _week_days(week_offset)
+    raw_days = _week_days(week_offset)
     today = date.today()
 
-    # 全メンバーの予定を集約（PersonalSchedule + PersonalRecurringSchedule）
-    all_schedules = []
-    members = room.members.filter(user__isnull=False).select_related('user')
+    members = list(room.members.filter(user__isnull=False).select_related('user'))
+    member_count = len(members)
 
-    for member in members:
-        is_mine = (member.user == request.user)
-        # 個人予定
-        for s in PersonalSchedule.objects.filter(user=member.user, date__range=[days[0], days[6]]):
-            all_schedules.append({
-                'member_name': member.name,
-                'is_mine': is_mine,
+    # 週全体の予定を一括取得（N+1クエリ回避）
+    user_ids = [m.user_id for m in members]
+    all_personal = list(PersonalSchedule.objects.filter(
+        user_id__in=user_ids, date__range=[raw_days[0], raw_days[6]]
+    ))
+    all_recurring = list(PersonalRecurringSchedule.objects.filter(user_id__in=user_ids))
+
+    user_to_member = {m.user_id: m for m in members}
+
+    # 日ごとの表示データを構築
+    days = []
+    for d in raw_days:
+        weekday_int = d.weekday()
+        day_personal = [s for s in all_personal if s.date == d]
+        day_recurring = [r for r in all_recurring if r.weekday == weekday_int]
+
+        schedules_for_day = []
+        member_busy = {m.user_id: set() for m in members}
+
+        for s in day_personal:
+            m = user_to_member.get(s.user_id)
+            if not m:
+                continue
+            is_mine = (s.user_id == request.user.id)
+            s_start_min = s.start_time.hour * 60 + s.start_time.minute
+            s_end_min = s.end_time.hour * 60 + s.end_time.minute
+            for h in CALENDAR_HOURS:
+                if h * 60 >= s_start_min and h * 60 < s_end_min:
+                    member_busy[s.user_id].add(h)
+            schedules_for_day.append({
+                'start_hour': s.start_time.hour,
+                'height': max(20, s_end_min - s_start_min),
+                'type': 'self-sched' if is_mine else 'other-sched',
+                'label': s.label or ('自分' if is_mine else m.name),
+            })
+
+        for r in day_recurring:
+            m = user_to_member.get(r.user_id)
+            if not m:
+                continue
+            is_mine = (r.user_id == request.user.id)
+            r_start_min = r.start_time.hour * 60 + r.start_time.minute
+            r_end_min = r.end_time.hour * 60 + r.end_time.minute
+            for h in CALENDAR_HOURS:
+                if h * 60 >= r_start_min and h * 60 < r_end_min:
+                    member_busy[r.user_id].add(h)
+            schedules_for_day.append({
+                'start_hour': r.start_time.hour,
+                'height': max(20, r_end_min - r_start_min),
+                'type': 'self-sched' if is_mine else 'recurring-sched',
+                'label': r.label or ('自分' if is_mine else m.name),
+            })
+
+        busy_counts = {h: sum(1 for uid, bh in member_busy.items() if h in bh) for h in CALENDAR_HOURS}
+        all_free_hours = [h for h in CALENDAR_HOURS if member_count > 0 and busy_counts[h] == 0]
+
+        days.append({
+            'date': d.strftime('%Y-%m-%d'),
+            'day': d.day,
+            'weekday': WEEKDAY_LABELS[weekday_int],
+            'is_today': d == today,
+            'schedules': schedules_for_day,
+            'all_free_hours': all_free_hours,
+        })
+
+    # 週ラベルとナビゲーション
+    week_label = f"{raw_days[0].month}月{raw_days[0].day}日〜{raw_days[-1].month}月{raw_days[-1].day}日"
+
+    # 候補日（Pythonリストのまま渡す → テンプレートで {% if candidate_dates %} が正確に動く）
+    candidate_dates = room.candidate_dates or []
+
+    # JS用フラットJSON
+    all_schedules_js = []
+    for m in members:
+        is_mine = (m.user == request.user)
+        for s in [s for s in all_personal if s.user_id == m.user_id]:
+            all_schedules_js.append({
+                'member_name': m.name, 'is_mine': is_mine,
                 'date': s.date.strftime('%Y-%m-%d'),
                 'start_time': s.start_time.strftime('%H:%M'),
                 'end_time': s.end_time.strftime('%H:%M'),
-                'label': s.label,
-                'is_recurring': False,
+                'label': s.label, 'is_recurring': False,
             })
-        # 定期予定を展開
-        for item in _expand_recurring(
-            PersonalRecurringSchedule.objects.filter(user=member.user), days
-        ):
-            item['member_name'] = member.name
+        for item in _expand_recurring([r for r in all_recurring if r.user_id == m.user_id], raw_days):
+            item['member_name'] = m.name
             item['is_mine'] = is_mine
-            all_schedules.append(item)
-
-    # 候補日
-    candidate_dates = room.candidate_dates or []
+            all_schedules_js.append(item)
 
     return render(request, 'scheduler/group_calendar.html', {
         'room': room,
         'current_member': current_member,
         'members': members,
         'days': days,
+        'hours': CALENDAR_HOURS,
         'today': today,
         'week_offset': week_offset,
-        'schedules_json': json.dumps(all_schedules, ensure_ascii=False),
-        'candidate_dates': json.dumps(candidate_dates),
+        'prev_week': week_offset - 1,
+        'next_week': week_offset + 1,
+        'week_label': week_label,
+        'schedules_json': json.dumps(all_schedules_js, ensure_ascii=False),
+        'candidate_dates': candidate_dates,
         'current_tab': 'group_list',
     })
 
@@ -291,4 +361,12 @@ def schedule_save(request, room_id):
 def group_delete(request, room_id):
     room = get_object_or_404(Room, id=room_id, created_by=request.user)
     room.delete()
+    return redirect('scheduler:group_list')
+
+
+@login_required
+@require_POST
+def group_leave(request, room_id):
+    room = get_object_or_404(Room, id=room_id)
+    Member.objects.filter(room=room, user=request.user).delete()
     return redirect('scheduler:group_list')
