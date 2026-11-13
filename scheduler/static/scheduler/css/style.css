@@ -229,7 +229,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 11px 14px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: 'Inter', sans-serif;
   color: var(--fg);
   outline: none;
