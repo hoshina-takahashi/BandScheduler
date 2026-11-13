@@ -2,7 +2,7 @@
 {% block title %}{{ room.name }} — BandScheduler{% endblock %}
 {% block body %}
 <div class="top-bar" style="gap:8px;">
-  <a href="{% url 'group_list' %}" class="icon-btn">←</a>
+  <a href="{% url 'scheduler:group_list' %}" class="icon-btn">←</a>
   <h1 style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ room.name }}</h1>
   <button class="icon-btn" onclick="shareRoom()" title="URLをコピー">🔗</button>
 </div>
