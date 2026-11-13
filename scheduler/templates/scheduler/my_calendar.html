@@ -27,7 +27,7 @@
 </div>
 
 <!-- 追加モーダル -->
-<div class="modal-overlay" id="add-modal" hidden>
+<div class="modal-overlay" id="add-modal" style="display:none">
   <div class="modal">
     <button class="modal-close" onclick="closeAddModal()">×</button>
     <div class="modal-title">予定を追加</div>
@@ -130,9 +130,9 @@ function renderSchedules() {
 
 function openAddModal() {
   document.getElementById('new-date').value = selectedDate;
-  document.getElementById('add-modal').hidden = false;
+  document.getElementById('add-modal').style.display = 'flex';
 }
-function closeAddModal() { document.getElementById('add-modal').hidden = true; }
+function closeAddModal() { document.getElementById('add-modal').style.display = 'none'; }
 
 async function addSchedule() {
   const label = document.getElementById('new-label').value;
