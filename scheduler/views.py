@@ -1,12 +1,17 @@
 import json
+import datetime as dt
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
+from django.urls import reverse
+from django.utils import timezone
 from .models import (
     Room, Member, Schedule, RecurringSchedule,
-    PersonalSchedule, PersonalRecurringSchedule
+    PersonalSchedule, PersonalRecurringSchedule,
+    GoogleCalendarToken,
 )
 
 WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日']
@@ -143,7 +148,11 @@ def user_settings(request):
             request.user.first_name = display_name
             request.user.save()
         return redirect('scheduler:user_settings')
-    return render(request, 'scheduler/user_settings.html', {'current_tab': 'user_settings'})
+    gcal_token = GoogleCalendarToken.objects.filter(user=request.user).first()
+    return render(request, 'scheduler/user_settings.html', {
+        'current_tab': 'user_settings',
+        'gcal_token': gcal_token,
+    })
 
 
 # ==================== グループカレンダー ====================
@@ -436,3 +445,162 @@ def group_leave(request, room_id):
     room = get_object_or_404(Room, id=room_id)
     Member.objects.filter(room=room, user=request.user).delete()
     return redirect('scheduler:group_list')
+
+
+# ==================== Google カレンダー連携 ====================
+
+GCAL_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+
+
+def _build_gcal_flow(request):
+    """allauth の SocialApp から Google OAuth Flow を生成する"""
+    from allauth.socialaccount.models import SocialApp
+    from google_auth_oauthlib.flow import Flow
+    app = SocialApp.objects.get(provider='google')
+    callback_url = request.build_absolute_uri(reverse('scheduler:gcal_callback'))
+    flow = Flow.from_client_config(
+        {
+            'web': {
+                'client_id': app.client_id,
+                'client_secret': app.secret,
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
+                'redirect_uris': [callback_url],
+            }
+        },
+        scopes=GCAL_SCOPES,
+        redirect_uri=callback_url,
+    )
+    return flow
+
+
+@login_required
+def gcal_auth(request):
+    """Google カレンダー OAuth 開始"""
+    flow = _build_gcal_flow(request)
+    auth_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent',
+    )
+    request.session['gcal_oauth_state'] = state
+    return redirect(auth_url)
+
+
+@login_required
+def gcal_callback(request):
+    """Google OAuth コールバック — トークンを保存して設定ページへ"""
+    if 'error' in request.GET:
+        return redirect('scheduler:user_settings')
+
+    try:
+        flow = _build_gcal_flow(request)
+        flow.fetch_token(authorization_response=request.build_absolute_uri())
+        creds = flow.credentials
+        GoogleCalendarToken.objects.update_or_create(
+            user=request.user,
+            defaults={
+                'access_token': creds.token,
+                'refresh_token': creds.refresh_token or '',
+                'token_expiry': creds.expiry,
+            }
+        )
+    except Exception:
+        pass
+
+    return redirect('scheduler:user_settings')
+
+
+@login_required
+@require_POST
+def gcal_sync(request):
+    """Google カレンダーの予定を PersonalSchedule に同期する"""
+    from allauth.socialaccount.models import SocialApp
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request as GoogleRequest
+    from googleapiclient.discovery import build
+
+    try:
+        token_obj = GoogleCalendarToken.objects.get(user=request.user)
+    except GoogleCalendarToken.DoesNotExist:
+        return redirect('scheduler:gcal_auth')
+
+    try:
+        app = SocialApp.objects.get(provider='google')
+        creds = Credentials(
+            token=token_obj.access_token,
+            refresh_token=token_obj.refresh_token or None,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=app.client_id,
+            client_secret=app.secret,
+            scopes=GCAL_SCOPES,
+        )
+
+        # トークンが失効していたらリフレッシュ
+        if not creds.valid and creds.refresh_token:
+            creds.refresh(GoogleRequest())
+            token_obj.access_token = creds.token
+            token_obj.token_expiry = creds.expiry
+            token_obj.save()
+
+        service = build('calendar', 'v3', credentials=creds)
+
+        jst = ZoneInfo('Asia/Tokyo')
+        now = dt.datetime.now(dt.timezone.utc)
+        end = now + dt.timedelta(days=30)
+
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=now.isoformat(),
+            timeMax=end.isoformat(),
+            singleEvents=True,
+            orderBy='startTime',
+        ).execute()
+        events = events_result.get('items', [])
+
+        # 既存のGoogle同期予定を今日以降で削除
+        today = dt.date.today()
+        PersonalSchedule.objects.filter(
+            user=request.user,
+            date__gte=today,
+            source='google',
+        ).delete()
+
+        # イベントをインポート（終日予定はスキップ）
+        for event in events:
+            start = event.get('start', {})
+            end_ev = event.get('end', {})
+            if 'dateTime' not in start:
+                continue
+            summary = event.get('summary', '予定')[:100]
+            start_dt = dt.datetime.fromisoformat(
+                start['dateTime'].replace('Z', '+00:00')
+            ).astimezone(jst)
+            end_dt = dt.datetime.fromisoformat(
+                end_ev['dateTime'].replace('Z', '+00:00')
+            ).astimezone(jst)
+            PersonalSchedule.objects.create(
+                user=request.user,
+                date=start_dt.date(),
+                start_time=start_dt.time().replace(second=0, microsecond=0),
+                end_time=end_dt.time().replace(second=0, microsecond=0),
+                label=summary,
+                source='google',
+            )
+
+        token_obj.synced_at = timezone.now()
+        token_obj.save()
+
+    except Exception:
+        pass
+
+    return redirect('scheduler:user_settings')
+
+
+@login_required
+@require_POST
+def gcal_disconnect(request):
+    """Google カレンダー連携を解除し、同期済み予定も削除する"""
+    PersonalSchedule.objects.filter(user=request.user, source='google').delete()
+    GoogleCalendarToken.objects.filter(user=request.user).delete()
+    return redirect('scheduler:user_settings')

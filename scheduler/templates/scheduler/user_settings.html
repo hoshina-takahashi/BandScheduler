@@ -33,19 +33,46 @@
     </form>
   </div>
 
-  <!-- Calendar sync placeholder -->
+  <!-- Calendar sync -->
   <div class="card">
     <div class="card-title">カレンダー連携</div>
+
+    <!-- Google カレンダー -->
     <div class="sync-item">
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="font-size:22px;">📅</span>
         <div>
           <div style="font-weight:500;">Google カレンダー</div>
-          <div class="text-muted" style="font-size:12px;">近日公開予定</div>
+          {% if gcal_token %}
+            <div class="text-muted" style="font-size:12px;">
+              {% if gcal_token.synced_at %}
+                最終同期：{{ gcal_token.synced_at|date:"m/d H:i" }}
+              {% else %}
+                連携済み・未同期
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="text-muted" style="font-size:12px;">Googleアカウントと連携して予定を取り込む</div>
+          {% endif %}
         </div>
       </div>
-      <span class="badge coming-soon">準備中</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        {% if gcal_token %}
+          <form method="post" action="{% url 'scheduler:gcal_sync' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-sync">🔄 同期</button>
+          </form>
+          <form method="post" action="{% url 'scheduler:gcal_disconnect' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-disconnect" onclick="return confirm('連携を解除しますか？同期済みの予定も削除されます。')">解除</button>
+          </form>
+        {% else %}
+          <a href="{% url 'scheduler:gcal_auth' %}" class="btn-connect">連携する</a>
+        {% endif %}
+      </div>
     </div>
+
+    <!-- Apple カレンダー（準備中） -->
     <div class="sync-item">
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="font-size:22px;">🍎</span>
@@ -63,7 +90,7 @@
     <div class="card-title">アプリ情報</div>
     <div class="info-row">
       <span class="text-muted">バージョン</span>
-      <span>1.0.0</span>
+      <span>1.1.0</span>
     </div>
     <div class="info-row">
       <span class="text-muted">ログインアカウント</span>
@@ -87,10 +114,24 @@
 }
 .sync-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 0; border-bottom: 1px solid var(--border);
+  padding: 12px 0; border-bottom: 1px solid var(--border);
 }
 .sync-item:last-child { border-bottom: none; }
-.badge.coming-soon { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.badge.coming-soon { background: var(--bg3); color: var(--fg2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 12px; }
+.btn-connect {
+  display: inline-block; padding: 7px 14px; background: var(--accent); color: #fff;
+  border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.btn-sync {
+  padding: 7px 12px; background: var(--accent-light); color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.btn-disconnect {
+  padding: 7px 12px; background: transparent; color: var(--warn);
+  border: 1px solid var(--warn); border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
 .info-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px;

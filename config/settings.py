@@ -103,6 +103,9 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+# Google カレンダー連携スコープ（allauth ログインとは別フロー）
+GCAL_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
