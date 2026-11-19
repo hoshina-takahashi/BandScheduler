@@ -54,7 +54,7 @@
     </div>
 
     {% for item in candidate_data %}
-    <div class="tl-card {% if item.all_free_count > 0 %}has-free{% endif %}"
+    <div class="tl-card"
          onclick="showDetail({{ forloop.counter0 }})" tabindex="0"
          onkeydown="if(event.key==='Enter')showDetail({{ forloop.counter0 }})">
 
@@ -64,10 +64,8 @@
           <span class="tl-date-main">{{ item.date_str }}</span>
           <span class="tl-weekday">{{ item.weekday }}</span>
         </div>
-        {% if item.all_free_count > 0 %}
+        {% if item.all_day_free %}
         <span class="tl-badge free-badge">✓ 全員OK {{ item.all_free_count }}時間</span>
-        {% else %}
-        <span class="tl-badge none-badge">全員揃う時間なし</span>
         {% endif %}
       </div>
 
@@ -182,7 +180,7 @@
 }
 .tl-card:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.12);}
 .tl-card:active{transform:translateY(0);}
-.tl-card.has-free{border-color:#7CFC00;}
+
 .tl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .tl-date{display:flex;align-items:baseline;gap:6px;}
 .tl-date-main{font-weight:700;font-size:15px;}
@@ -243,7 +241,7 @@ function showDetail(idx) {
     return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
       <div style="width:64px;font-size:12px;font-weight:${m.is_mine?700:400};
         flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-        ${m.name}${m.is_mine?' ★':''}
+        ${m.name}
       </div>
       <div style="flex:1;display:flex;gap:1px;">${bar}</div>
     </div>`;

@@ -296,6 +296,7 @@ def group_calendar(request, room_id):
                     'weekday': WEEKDAY_LABELS[weekday_int],
                     'slots': slots,
                     'all_free_count': all_free_count,
+                    'all_day_free': all_free_count == len(CALENDAR_HOURS),
                     'member_schedules': member_sched_list,
                 })
 
