@@ -19,7 +19,7 @@
 </div>
 <div class="scroll-area">
 
-  <!-- Members -->
+  <!-- メンバー一覧 -->
   <div class="card" style="padding:12px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <span style="font-size:13px;font-weight:600;color:var(--muted);">メンバー</span>
@@ -34,20 +34,30 @@
     </div>
   </div>
 
-  <!-- Candidate dates / availability -->
   {% if candidate_dates %}
+  <!-- ===== 候補日の空き状況 ===== -->
   <div style="margin-top:8px;">
     <div class="card-title">候補日の空き状況</div>
 
     <!-- 凡例 -->
-    <div style="display:flex;gap:12px;margin-bottom:8px;font-size:12px;color:var(--muted);">
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--green);display:inline-block;"></span>全員OK</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--yellow,#f59e0b);display:inline-block;"></span>一部NG</span>
-      <span style="display:flex;align-items:center;border-radius:3px;gap:4px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--red,#ef4444);display:inline-block;"></span>全員NG</span>
+    <div style="display:flex;gap:14px;margin-bottom:10px;font-size:12px;align-items:center;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span class="leg-dot" style="background:#7CFC00;"></span>全員OK
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span class="leg-dot" style="background:#FFFF00;border:1px solid #aaa;"></span>一部NG
+      </span>
+      <span style="display:flex;align-items:center;gap:4px;">
+        <span class="leg-dot" style="background:#FF0000;"></span>全員NG
+      </span>
+      <span style="color:var(--muted);font-size:11px;">📌 タップで詳細</span>
     </div>
 
     {% for item in candidate_data %}
-    <div class="tl-card {% if item.all_free_count > 0 %}has-free{% endif %}">
+    <div class="tl-card {% if item.all_free_count > 0 %}has-free{% endif %}"
+         onclick="showDetail({{ forloop.counter0 }})" tabindex="0"
+         onkeydown="if(event.key==='Enter')showDetail({{ forloop.counter0 }})">
+
       <!-- ヘッダー -->
       <div class="tl-header">
         <div class="tl-date">
@@ -55,33 +65,61 @@
           <span class="tl-weekday">{{ item.weekday }}</span>
         </div>
         {% if item.all_free_count > 0 %}
-        <span class="tl-badge free">✓ 全員OK {{ item.all_free_count }}時間</span>
+        <span class="tl-badge free-badge">✓ 全員OK {{ item.all_free_count }}時間</span>
         {% else %}
-        <span class="tl-badge none">全員揃う時間なし</span>
+        <span class="tl-badge none-badge">全員揃う時間なし</span>
         {% endif %}
       </div>
 
-      <!-- タイムライン -->
+      <!-- タイムラインバー -->
       <div class="tl-wrap">
-        <!-- 時間ラベル -->
-        <div class="tl-labels">
+        <div class="tl-hlabels">
           {% for slot in item.slots %}
-          <div class="tl-label">{{ slot.time }}</div>
+          <div class="tl-hlabel">{{ slot.hour }}</div>
           {% endfor %}
         </div>
-        <!-- カラーバー -->
         <div class="tl-bar">
           {% for slot in item.slots %}
-          <div class="tl-seg {{ slot.status }}" title="{{ slot.time }}〜{{ slot.time_end }}"></div>
+          <div class="tl-seg seg-{{ slot.status }}" title="{{ slot.time }}〜{{ slot.time_end }}"></div>
           {% endfor %}
         </div>
       </div>
     </div>
     {% endfor %}
   </div>
-  {% else %}
 
-  <!-- Week calendar if no candidate dates -->
+  <!-- 詳細モーダル -->
+  <div id="detail-overlay" onclick="closeDetail()"
+       style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;"></div>
+  <div id="detail-modal"
+       style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+              background:#fff;color:#111;border-radius:16px;padding:20px 16px;
+              width:min(94vw,420px);z-index:201;box-shadow:0 12px 48px rgba(0,0,0,.3);
+              max-height:84vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <span id="modal-date" style="font-weight:700;font-size:17px;color:#111;"></span>
+        <span id="modal-weekday"
+              style="margin-left:6px;font-size:12px;padding:2px 7px;border-radius:4px;
+                     background:#e2e8f0;color:#64748b;"></span>
+      </div>
+      <button onclick="closeDetail()"
+              style="font-size:22px;line-height:1;background:none;border:none;cursor:pointer;color:#64748b;">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div style="display:flex;gap:14px;margin-top:12px;font-size:11px;color:#64748b;
+                border-top:1px solid #e2e8f0;padding-top:10px;">
+      <span style="display:flex;align-items:center;gap:3px;">
+        <span style="width:10px;height:10px;border-radius:2px;background:#7CFC00;display:inline-block;"></span>空き
+      </span>
+      <span style="display:flex;align-items:center;gap:3px;">
+        <span style="width:10px;height:10px;border-radius:2px;background:#FF4444;display:inline-block;"></span>予定あり
+      </span>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ===== 週カレンダー（候補日なし） ===== -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
     <a href="?week={{ prev_week }}" class="icon-btn">‹ 前の週</a>
     <span style="font-size:13px;font-weight:600;">{{ week_label }}</span>
@@ -108,10 +146,8 @@
         </div>
         {% endif %}
       {% endfor %}
-      {% if d.all_free_hours|yesno:"," %}
-        {% if hour in d.all_free_hours %}
-        <div class="all-free-mark"></div>
-        {% endif %}
+      {% if hour in d.all_free_hours %}
+      <div class="all-free-mark"></div>
       {% endif %}
     </div>
     {% endfor %}
@@ -119,9 +155,9 @@
   </div>
 
   <div class="legend">
-    <span class="legend-item"><span class="legend-dot self"></span>自分</span>
-    <span class="legend-item"><span class="legend-dot other"></span>他のメンバー</span>
-    <span class="legend-item"><span class="legend-dot free"></span>全員空き</span>
+    <span class="legend-item"><span class="legend-dot ld-self"></span>自分</span>
+    <span class="legend-item"><span class="legend-dot ld-other"></span>他のメンバー</span>
+    <span class="legend-item"><span class="legend-dot ld-free"></span>全員空き</span>
   </div>
   {% endif %}
 </div>
@@ -130,80 +166,104 @@
 
 <style>
 .member-chip {
-  padding: 4px 10px; border-radius: 20px; font-size: 13px;
-  background: var(--surface); border: 1px solid var(--border);
+  padding:4px 10px;border-radius:20px;font-size:13px;
+  background:var(--surface);border:1px solid var(--border);
 }
-.member-chip.self { background: var(--accent); color: #fff; border-color: var(--accent); }
+.member-chip.self{background:var(--accent);color:#fff;border-color:var(--accent);}
 
-/* タイムライン型候補日UI */
-.tl-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
+/* 凡例ドット */
+.leg-dot{width:13px;height:13px;border-radius:3px;display:inline-block;flex-shrink:0;}
+
+/* タイムラインカード */
+.tl-card{
+  background:var(--surface);border:2px solid var(--border);border-radius:12px;
+  padding:12px 14px;margin-bottom:10px;cursor:pointer;
+  transition:transform .12s,box-shadow .12s;user-select:none;
 }
-.tl-card.has-free { border-color: var(--green); }
-.tl-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px;
-}
-.tl-date { display: flex; align-items: baseline; gap: 6px; }
-.tl-date-main { font-weight: 700; font-size: 15px; }
-.tl-weekday {
-  font-size: 12px; color: var(--muted);
-  background: var(--border); border-radius: 4px; padding: 1px 5px;
-}
-.tl-badge {
-  font-size: 12px; font-weight: 600; border-radius: 20px; padding: 3px 10px;
-}
-.tl-badge.free { background: var(--green); color: #fff; }
-.tl-badge.none { background: var(--border); color: var(--muted); }
-.tl-wrap { overflow-x: auto; }
-.tl-labels {
-  display: flex; margin-bottom: 3px;
-}
-.tl-label {
-  flex: 1; min-width: 0; font-size: 10px; color: var(--muted);
-  text-align: left; padding-left: 2px;
-  white-space: nowrap; overflow: hidden;
-}
-.tl-bar {
-  display: flex; height: 28px; border-radius: 6px; overflow: hidden; gap: 1px;
-}
-.tl-seg {
-  flex: 1; cursor: default; transition: opacity .15s;
-}
-.tl-seg:hover { opacity: .75; }
-.tl-seg.free { background: var(--green); }
-.tl-seg.partial { background: var(--yellow, #f59e0b); }
-.tl-seg.busy { background: #e2e8f0; }
-@media (prefers-color-scheme: dark) {
-  .tl-seg.busy { background: #334155; }
-}
-.group-cal { font-size: 11px; }
-.sched-block { border-radius: 4px; overflow: hidden; padding: 2px 3px; margin: 1px 0; }
-.sched-block.self-sched { background: var(--accent); color: #fff; }
-.sched-block.other-sched { background: #94a3b8; color: #fff; }
-.sched-block.recurring-sched { background: #818cf8; color: #fff; }
-.all-free-mark { position:absolute;inset:0;background:rgba(34,197,94,.18);pointer-events:none; }
-.cal-cell { position:relative; }
-.legend { display:flex;gap:16px;justify-content:center;margin-top:12px;font-size:13px; }
-.legend-item { display:flex;align-items:center;gap:4px; }
-.legend-dot { width:10px;height:10px;border-radius:2px; }
-.legend-dot.self { background:var(--accent); }
-.legend-dot.other { background:#94a3b8; }
-.legend-dot.free { background:var(--green); }
+.tl-card:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.12);}
+.tl-card:active{transform:translateY(0);}
+.tl-card.has-free{border-color:#7CFC00;}
+.tl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.tl-date{display:flex;align-items:baseline;gap:6px;}
+.tl-date-main{font-weight:700;font-size:15px;}
+.tl-weekday{font-size:12px;color:var(--muted);background:var(--border);border-radius:4px;padding:1px 6px;}
+.tl-badge{font-size:12px;font-weight:600;border-radius:20px;padding:3px 10px;}
+.free-badge{background:#7CFC00;color:#1a4a00;}
+.none-badge{background:var(--border);color:var(--muted);}
+
+/* タイムラインバー */
+.tl-wrap{overflow:hidden;}
+.tl-hlabels{display:flex;margin-bottom:3px;}
+.tl-hlabel{flex:1;min-width:0;font-size:10px;color:var(--muted);text-align:center;line-height:1;}
+.tl-bar{display:flex;height:28px;border-radius:6px;overflow:hidden;gap:1px;}
+.tl-seg{flex:1;transition:filter .1s;}
+.tl-seg:hover{filter:brightness(1.12);}
+.seg-free    {background:#7CFC00;}
+.seg-partial {background:#FFFF00;}
+.seg-busy    {background:#FF0000;}
+
+/* 週カレンダー */
+.group-cal{font-size:11px;}
+.sched-block{border-radius:4px;overflow:hidden;padding:2px 3px;margin:1px 0;}
+.sched-block.self-sched{background:var(--accent);color:#fff;}
+.sched-block.other-sched{background:#94a3b8;color:#fff;}
+.sched-block.recurring-sched{background:#818cf8;color:#fff;}
+.all-free-mark{position:absolute;inset:0;background:rgba(124,252,0,.22);pointer-events:none;}
+.cal-cell{position:relative;}
+.legend{display:flex;gap:16px;justify-content:center;margin-top:12px;font-size:13px;}
+.legend-item{display:flex;align-items:center;gap:4px;}
+.legend-dot{width:10px;height:10px;border-radius:2px;}
+.ld-self {background:var(--accent);}
+.ld-other{background:#94a3b8;}
+.ld-free {background:#7CFC00;}
 </style>
 
 <script>
+/* ===== 詳細モーダル ===== */
+const DETAIL_DATA = {{ candidate_detail_json|safe }};
+const CAL_HOURS   = {{ hours|safe }};
+
+function showDetail(idx) {
+  const data = DETAIL_DATA[idx];
+  document.getElementById('modal-date').textContent    = data.date_str;
+  document.getElementById('modal-weekday').textContent = data.weekday;
+
+  // 時間ヘッダー
+  const hdr = `<div style="display:flex;margin-bottom:6px;padding-left:70px;">
+    ${CAL_HOURS.map(h=>`<div style="flex:1;text-align:center;font-size:9px;color:#888;">${h}</div>`).join('')}
+  </div>`;
+
+  // メンバー行
+  const rows = data.members.map(m => {
+    const bar = CAL_HOURS.map(h => {
+      const busy = m.busy_hours.includes(h);
+      return `<div style="flex:1;height:26px;border-radius:2px;background:${busy?'#FF4444':'#7CFC00'};
+        opacity:${busy?1:0.7};" title="${h}:00〜${h+1}:00 ${busy?'予定あり':'空き'}"></div>`;
+    }).join('');
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
+      <div style="width:64px;font-size:12px;font-weight:${m.is_mine?700:400};
+        flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        ${m.name}${m.is_mine?' ★':''}
+      </div>
+      <div style="flex:1;display:flex;gap:1px;">${bar}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = hdr + rows;
+  document.getElementById('detail-overlay').style.display = 'block';
+  document.getElementById('detail-modal').style.display   = 'block';
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').style.display = 'none';
+  document.getElementById('detail-modal').style.display   = 'none';
+}
+
+/* ===== URLシェア ===== */
 function shareRoom() {
-  const url = location.href.replace('/calendar/', '/').replace(location.pathname, '')
-    + '/room/{{ room.id }}/join/';
+  const url = location.origin + '/room/{{ room.id }}/join/';
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(() => {
-      alert('招待URLをコピーしました！\n' + url);
-    });
+    navigator.clipboard.writeText(url).then(() => alert('招待URLをコピーしました！\n' + url));
   } else {
     prompt('URLをコピーしてシェアしてください:', url);
   }

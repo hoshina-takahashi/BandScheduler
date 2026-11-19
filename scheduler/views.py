@@ -282,12 +282,21 @@ def group_calendar(request, room_id):
                         status = 'busy'
                     else:
                         status = 'partial'
-                    slots.append({'time': f'{h}:00', 'time_end': f'{h+1}:00', 'status': status})
+                    slots.append({'hour': h, 'time': f'{h}:00', 'time_end': f'{h+1}:00', 'status': status})
+                member_sched_list = [
+                    {
+                        'name': m.name,
+                        'is_mine': m.user_id == request.user.id,
+                        'busy_hours': sorted(member_busy.get(m.user_id, set())),
+                    }
+                    for m in members
+                ]
                 candidate_data.append({
                     'date_str': f'{d.month}月{d.day}日',
                     'weekday': WEEKDAY_LABELS[weekday_int],
                     'slots': slots,
                     'all_free_count': all_free_count,
+                    'member_schedules': member_sched_list,
                 })
 
     # JS用フラットJSON
@@ -321,6 +330,10 @@ def group_calendar(request, room_id):
         'schedules_json': json.dumps(all_schedules_js, ensure_ascii=False),
         'candidate_dates': candidate_dates,
         'candidate_data': candidate_data,
+        'candidate_detail_json': json.dumps([
+            {'date_str': item['date_str'], 'weekday': item['weekday'], 'members': item.get('member_schedules', [])}
+            for item in candidate_data
+        ], ensure_ascii=False),
         'current_tab': 'group_list',
     })
 
