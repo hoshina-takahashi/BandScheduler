@@ -3,48 +3,48 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  --bg: #f5f4f2;
+  --bg: #f5f5f7;
   --bg2: #ffffff;
-  --bg3: #eeece8;
-  --fg: #1a1814;
-  --fg2: #6b6760;
-  --fg3: #9b9893;
-  --accent: #3d6b4f;
-  --accent-light: #d4ebe0;
+  --bg3: #eef0f8;
+  --fg: #1a1a2e;
+  --fg2: #6b7280;
+  --fg3: #9ca3af;
+  --accent: #6366f1;
+  --accent-light: #eef2ff;
   --accent-text: #ffffff;
-  --border: #e0ddd8;
-  --warn: #c0392b;
-  --warn2: #fde8e6;
-  --yellow: #c8880a;
-  --yellow2: #fdf3de;
-  --shadow: 0 1px 4px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+  --border: #e5e7eb;
+  --warn: #ef4444;
+  --warn2: #fee2e2;
+  --yellow: #d97706;
+  --yellow2: #fef3c7;
+  --shadow: 0 1px 4px rgba(99,102,241,.08), 0 4px 16px rgba(99,102,241,.06);
   --nav-h: 68px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #161614;
-    --bg2: #1f1e1b;
-    --bg3: #272521;
-    --fg: #f0ede8;
-    --fg2: #9b9893;
-    --fg3: #6b6760;
-    --accent: #5a9e72;
-    --accent-light: #1e3328;
-    --border: #2e2c28;
-    --warn: #e05a4a;
-    --warn2: #2e1a18;
-    --yellow: #d4922a;
-    --yellow2: #2b220e;
+    --bg: #0f0f1a;
+    --bg2: #1c1c2e;
+    --bg3: #252540;
+    --fg: #e8e8f0;
+    --fg2: #9ca3af;
+    --fg3: #6b7280;
+    --accent: #818cf8;
+    --accent-light: #1e1e4e;
+    --border: #2e2e45;
+    --warn: #f87171;
+    --warn2: #2d1515;
+    --yellow: #fbbf24;
+    --yellow2: #292107;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #161614; --bg2: #1f1e1b; --bg3: #272521;
-  --fg: #f0ede8; --fg2: #9b9893; --fg3: #6b6760;
-  --accent: #5a9e72; --accent-light: #1e3328;
-  --border: #2e2c28; --warn: #e05a4a; --warn2: #2e1a18;
-  --yellow: #d4922a; --yellow2: #2b220e;
+  --bg: #0f0f1a; --bg2: #1c1c2e; --bg3: #252540;
+  --fg: #e8e8f0; --fg2: #9ca3af; --fg3: #6b7280;
+  --accent: #818cf8; --accent-light: #1e1e4e;
+  --border: #2e2e45; --warn: #f87171; --warn2: #2d1515;
+  --yellow: #fbbf24; --yellow2: #292107;
   color-scheme: dark;
 }
 
