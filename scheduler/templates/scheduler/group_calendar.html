@@ -36,29 +36,49 @@
 
   <!-- Candidate dates / availability -->
   {% if candidate_dates %}
-  <div class="card-title" style="margin-top:8px;">候補日の空き状況</div>
-  {% for item in candidate_data %}
-  <div class="cand-row">
-    <div class="cand-row-date">
-      <div style="font-weight:600;">{{ item.date_str }}</div>
-      <div class="text-muted" style="font-size:12px;">{{ item.weekday }}</div>
+  <div style="margin-top:8px;">
+    <div class="card-title">候補日の空き状況</div>
+
+    <!-- 凡例 -->
+    <div style="display:flex;gap:12px;margin-bottom:8px;font-size:12px;color:var(--muted);">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--green);display:inline-block;"></span>全員OK</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--yellow,#f59e0b);display:inline-block;"></span>一部NG</span>
+      <span style="display:flex;align-items:center;border-radius:3px;gap:4px;"><span style="width:12px;height:12px;border-radius:3px;background:var(--red,#ef4444);display:inline-block;"></span>全員NG</span>
     </div>
-    <div class="cand-avail-bar">
-      <div class="avail-track">
-        {% for slot in item.slots %}
-        <div class="avail-cell {{ slot.status }}" title="{{ slot.time }}"></div>
-        {% endfor %}
-      </div>
-      <div class="avail-count">
+
+    {% for item in candidate_data %}
+    <div class="tl-card {% if item.all_free_count > 0 %}has-free{% endif %}">
+      <!-- ヘッダー -->
+      <div class="tl-header">
+        <div class="tl-date">
+          <span class="tl-date-main">{{ item.date_str }}</span>
+          <span class="tl-weekday">{{ item.weekday }}</span>
+        </div>
         {% if item.all_free_count > 0 %}
-        <span class="badge all-free">全員OK {{ item.all_free_count }}枠</span>
+        <span class="tl-badge free">✓ 全員OK {{ item.all_free_count }}時間</span>
         {% else %}
-        <span class="text-muted" style="font-size:12px;">全員揃う枠なし</span>
+        <span class="tl-badge none">全員揃う時間なし</span>
         {% endif %}
       </div>
+
+      <!-- タイムライン -->
+      <div class="tl-wrap">
+        <!-- 時間ラベル -->
+        <div class="tl-labels">
+          {% for slot in item.slots %}
+          <div class="tl-label">{{ slot.time }}</div>
+          {% endfor %}
+        </div>
+        <!-- カラーバー -->
+        <div class="tl-bar">
+          {% for slot in item.slots %}
+          <div class="tl-seg {{ slot.status }}" title="{{ slot.time }}〜{{ slot.time_end }}"></div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
+    {% endfor %}
   </div>
-  {% endfor %}
   {% else %}
 
   <!-- Week calendar if no candidate dates -->
@@ -114,23 +134,53 @@
   background: var(--surface); border: 1px solid var(--border);
 }
 .member-chip.self { background: var(--accent); color: #fff; border-color: var(--accent); }
-.cand-row {
-  display: flex; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+
+/* タイムライン型候補日UI */
+.tl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
 }
-.cand-row:last-child { border-bottom: none; }
-.cand-row-date { width: 56px; flex-shrink: 0; }
-.cand-avail-bar { flex: 1; }
-.avail-track { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 4px; }
-.avail-cell {
-  width: 10px; height: 10px; border-radius: 2px;
-  background: var(--border);
+.tl-card.has-free { border-color: var(--green); }
+.tl-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
 }
-.avail-cell.free { background: var(--green); }
-.avail-cell.busy { background: var(--red, #ef4444); }
-.avail-cell.partial { background: var(--yellow, #f59e0b); }
-.avail-count { margin-top: 4px; }
-.badge.all-free { background: var(--green); color: #fff; }
+.tl-date { display: flex; align-items: baseline; gap: 6px; }
+.tl-date-main { font-weight: 700; font-size: 15px; }
+.tl-weekday {
+  font-size: 12px; color: var(--muted);
+  background: var(--border); border-radius: 4px; padding: 1px 5px;
+}
+.tl-badge {
+  font-size: 12px; font-weight: 600; border-radius: 20px; padding: 3px 10px;
+}
+.tl-badge.free { background: var(--green); color: #fff; }
+.tl-badge.none { background: var(--border); color: var(--muted); }
+.tl-wrap { overflow-x: auto; }
+.tl-labels {
+  display: flex; margin-bottom: 3px;
+}
+.tl-label {
+  flex: 1; min-width: 0; font-size: 10px; color: var(--muted);
+  text-align: left; padding-left: 2px;
+  white-space: nowrap; overflow: hidden;
+}
+.tl-bar {
+  display: flex; height: 28px; border-radius: 6px; overflow: hidden; gap: 1px;
+}
+.tl-seg {
+  flex: 1; cursor: default; transition: opacity .15s;
+}
+.tl-seg:hover { opacity: .75; }
+.tl-seg.free { background: var(--green); }
+.tl-seg.partial { background: var(--yellow, #f59e0b); }
+.tl-seg.busy { background: #e2e8f0; }
+@media (prefers-color-scheme: dark) {
+  .tl-seg.busy { background: #334155; }
+}
 .group-cal { font-size: 11px; }
 .sched-block { border-radius: 4px; overflow: hidden; padding: 2px 3px; margin: 1px 0; }
 .sched-block.self-sched { background: var(--accent); color: #fff; }

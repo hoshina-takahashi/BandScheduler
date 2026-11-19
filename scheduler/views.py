@@ -282,7 +282,7 @@ def group_calendar(request, room_id):
                         status = 'busy'
                     else:
                         status = 'partial'
-                    slots.append({'time': f'{h}:00', 'status': status})
+                    slots.append({'time': f'{h}:00', 'time_end': f'{h+1}:00', 'status': status})
                 candidate_data.append({
                     'date_str': f'{d.month}月{d.day}日',
                     'weekday': WEEKDAY_LABELS[weekday_int],
