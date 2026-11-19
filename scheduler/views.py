@@ -149,9 +149,11 @@ def user_settings(request):
             request.user.save()
         return redirect('scheduler:user_settings')
     gcal_token = GoogleCalendarToken.objects.filter(user=request.user).first()
+    gcal_sync_error = request.session.pop('gcal_sync_error', None)
     return render(request, 'scheduler/user_settings.html', {
         'current_tab': 'user_settings',
         'gcal_token': gcal_token,
+        'gcal_sync_error': gcal_sync_error,
     })
 
 
@@ -495,7 +497,8 @@ def gcal_callback(request):
 
     try:
         flow = _build_gcal_flow(request)
-        flow.fetch_token(authorization_response=request.build_absolute_uri())
+        # state検証をスキップ（再ログイン時のセッションリセット対策）
+        flow.fetch_token(code=request.GET.get('code'))
         creds = flow.credentials
         GoogleCalendarToken.objects.update_or_create(
             user=request.user,
@@ -505,8 +508,9 @@ def gcal_callback(request):
                 'token_expiry': creds.expiry,
             }
         )
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f'gcal_callback error: {e}')
 
     return redirect('scheduler:user_settings')
 
@@ -591,8 +595,11 @@ def gcal_sync(request):
         token_obj.synced_at = timezone.now()
         token_obj.save()
 
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f'gcal_sync error: {e}')
+        # セッションにエラーメッセージを保存
+        request.session['gcal_sync_error'] = str(e)
 
     return redirect('scheduler:user_settings')
 

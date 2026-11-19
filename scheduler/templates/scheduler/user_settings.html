@@ -37,6 +37,11 @@
   <div class="card">
     <div class="card-title">カレンダー連携</div>
 
+    <!-- 同期エラー表示 -->
+    {% if gcal_sync_error %}
+    <div class="sync-error-msg">⚠️ 同期エラー: {{ gcal_sync_error }}</div>
+    {% endif %}
+
     <!-- Google カレンダー -->
     <div class="sync-item">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -121,6 +126,10 @@
 .btn-connect {
   display: inline-block; padding: 7px 14px; background: var(--accent); color: #fff;
   border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.sync-error-msg {
+  background: var(--warn2); color: var(--warn); border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; margin-bottom: 10px;
 }
 .btn-sync {
   padding: 7px 12px; background: var(--accent-light); color: var(--accent);
