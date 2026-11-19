@@ -9,11 +9,12 @@
 ## 機能
 
 - **Googleアカウントでログイン** — メールアドレス・パスワード不要
-- **マイカレンダー** — 自分の予定を週ビューで登録・管理
+- **マイカレンダー** — 自分の予定を月ビューで登録・管理（日付タップで詳細表示）
 - **定期予定** — 毎週の予定（バイト・授業など）を一括登録、全週に自動反映
 - **グループカレンダー** — ルームを作成してURLを共有するだけでメンバーが参加可能
 - **空き時間ハイライト** — メンバー全員が空いている時間帯を自動で緑表示
 - **候補日設定** — 日程調整の対象日を絞り込んで表示
+- **Googleカレンダー連携** — Googleカレンダーの予定を自動同期してマイカレンダーに反映
 
 ---
 
@@ -88,8 +89,23 @@ bandscheduler/
 
 ---
 
+## Googleカレンダー連携のセットアップ
+
+ローカル環境でGoogleカレンダー連携を使うには、Google Cloud Consoleでの設定が必要です。
+
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成
+2. **Google Calendar API** と **Google People API** を有効化
+3. OAuth 2.0 クライアントIDを作成し、承認済みリダイレクトURIに追加：
+   ```
+   http://localhost:8000/gcal/callback/
+   https://your-domain.onrender.com/gcal/callback/
+   ```
+4. Django管理画面（`/admin/`）で `Social applications` にクライアントIDとシークレットを登録
+
+---
+
 ## 今後の予定
 
-- Google Calendar連携
+- Appleカレンダー連携（ICSファイルインポート）
 - UI改善（モバイル対応強化）
 - 候補日への投票・コメント機能
