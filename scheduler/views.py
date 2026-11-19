@@ -177,10 +177,12 @@ def user_settings(request):
         return redirect('scheduler:user_settings')
     gcal_token = GoogleCalendarToken.objects.filter(user=request.user).first()
     gcal_sync_error = request.session.pop('gcal_sync_error', None)
+    gcal_sync_count = request.session.pop('gcal_sync_count', None)
     return render(request, 'scheduler/user_settings.html', {
         'current_tab': 'user_settings',
         'gcal_token': gcal_token,
         'gcal_sync_error': gcal_sync_error,
+        'gcal_sync_count': gcal_sync_count,
     })
 
 
@@ -553,6 +555,8 @@ def gcal_sync(request):
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request as GoogleRequest
     from googleapiclient.discovery import build
+    import logging
+    logger = logging.getLogger(__name__)
 
     try:
         token_obj = GoogleCalendarToken.objects.get(user=request.user)
@@ -571,7 +575,7 @@ def gcal_sync(request):
         )
 
         # トークンが失効していたらリフレッシュ
-        if not creds.valid and creds.refresh_token:
+        if creds.refresh_token and (not creds.valid or not creds.token):
             creds.refresh(GoogleRequest())
             token_obj.access_token = creds.token
             token_obj.token_expiry = creds.expiry
@@ -580,55 +584,72 @@ def gcal_sync(request):
         service = build('calendar', 'v3', credentials=creds)
 
         jst = ZoneInfo('Asia/Tokyo')
-        now = dt.datetime.now(dt.timezone.utc)
-        end = now + dt.timedelta(days=30)
+        today = dt.date.today()
+        now_utc = dt.datetime.now(dt.timezone.utc)
+        end_utc = now_utc + dt.timedelta(days=60)
 
         events_result = service.events().list(
             calendarId='primary',
-            timeMin=now.isoformat(),
-            timeMax=end.isoformat(),
+            timeMin=now_utc.isoformat(),
+            timeMax=end_utc.isoformat(),
             singleEvents=True,
             orderBy='startTime',
+            maxResults=250,
         ).execute()
         events = events_result.get('items', [])
+        logger.info(f'gcal_sync: {len(events)} events fetched for {request.user.email}')
 
         # 既存のGoogle同期予定を今日以降で削除
-        today = dt.date.today()
         PersonalSchedule.objects.filter(
             user=request.user,
             date__gte=today,
             source='google',
         ).delete()
 
-        # イベントをインポート（終日予定はスキップ）
+        created = 0
         for event in events:
             start = event.get('start', {})
             end_ev = event.get('end', {})
-            if 'dateTime' not in start:
-                continue
-            summary = event.get('summary', '予定')[:100]
-            start_dt = dt.datetime.fromisoformat(
-                start['dateTime'].replace('Z', '+00:00')
-            ).astimezone(jst)
-            end_dt = dt.datetime.fromisoformat(
-                end_ev['dateTime'].replace('Z', '+00:00')
-            ).astimezone(jst)
-            PersonalSchedule.objects.create(
-                user=request.user,
-                date=start_dt.date(),
-                start_time=start_dt.time().replace(second=0, microsecond=0),
-                end_time=end_dt.time().replace(second=0, microsecond=0),
-                label=summary,
-                source='google',
-            )
+            summary = (event.get('summary') or '予定')[:100]
+
+            if 'dateTime' in start:
+                # 時刻付きイベント
+                start_dt = dt.datetime.fromisoformat(
+                    start['dateTime'].replace('Z', '+00:00')
+                ).astimezone(jst)
+                end_dt = dt.datetime.fromisoformat(
+                    end_ev['dateTime'].replace('Z', '+00:00')
+                ).astimezone(jst)
+                PersonalSchedule.objects.create(
+                    user=request.user,
+                    date=start_dt.date(),
+                    start_time=start_dt.time().replace(second=0, microsecond=0),
+                    end_time=end_dt.time().replace(second=0, microsecond=0),
+                    label=summary,
+                    source='google',
+                )
+                created += 1
+            elif 'date' in start:
+                # 終日イベント
+                event_date = dt.date.fromisoformat(start['date'])
+                if event_date >= today:
+                    PersonalSchedule.objects.create(
+                        user=request.user,
+                        date=event_date,
+                        start_time=dt.time(0, 0),
+                        end_time=dt.time(23, 59),
+                        label=f'[終日] {summary}',
+                        source='google',
+                    )
+                    created += 1
 
         token_obj.synced_at = timezone.now()
         token_obj.save()
+        request.session['gcal_sync_count'] = created
+        logger.info(f'gcal_sync: {created} events imported for {request.user.email}')
 
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f'gcal_sync error: {e}')
-        # セッションにエラーメッセージを保存
+        logger.error(f'gcal_sync error: {e}', exc_info=True)
         request.session['gcal_sync_error'] = str(e)
 
     return redirect('scheduler:user_settings')

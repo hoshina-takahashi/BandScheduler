@@ -37,9 +37,12 @@
   <div class="card">
     <div class="card-title">カレンダー連携</div>
 
-    <!-- 同期エラー表示 -->
+    <!-- 同期結果表示 -->
     {% if gcal_sync_error %}
-    <div class="sync-error-msg">⚠️ 同期エラー: {{ gcal_sync_error }}</div>
+    <div class="sync-msg sync-msg-error">⚠️ 同期エラー: {{ gcal_sync_error }}</div>
+    {% endif %}
+    {% if gcal_sync_count is not None %}
+    <div class="sync-msg sync-msg-ok">✅ {{ gcal_sync_count }}件の予定を同期しました</div>
     {% endif %}
 
     <!-- Google カレンダー -->
@@ -127,10 +130,15 @@
   display: inline-block; padding: 7px 14px; background: var(--accent); color: #fff;
   border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none;
 }
-.sync-error-msg {
-  background: var(--warn2); color: var(--warn); border-radius: 8px;
-  padding: 10px 12px; font-size: 13px; margin-bottom: 10px;
+.sync-msg {
+  border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 10px;
 }
+.sync-msg-error { background: var(--warn2); color: var(--warn); }
+.sync-msg-ok { background: #d1fae5; color: #065f46; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sync-msg-ok { background: #064e3b; color: #6ee7b7; }
+}
+:root[data-theme="dark"] .sync-msg-ok { background: #064e3b; color: #6ee7b7; }
 .btn-sync {
   padding: 7px 12px; background: var(--accent-light); color: var(--accent);
   border: 1px solid var(--accent); border-radius: 8px; font-size: 13px; font-weight: 600;
