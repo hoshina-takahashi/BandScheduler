@@ -496,6 +496,9 @@ def gcal_callback(request):
         return redirect('scheduler:user_settings')
 
     try:
+        import os as _os
+        # Googleが追加スコープ(openid等)を返しても許容する
+        _os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
         flow = _build_gcal_flow(request)
         # state検証をスキップ（再ログイン時のセッションリセット対策）
         flow.fetch_token(code=request.GET.get('code'))
