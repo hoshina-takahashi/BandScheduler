@@ -45,13 +45,26 @@ def _expand_recurring(recurring_qs, days):
 
 @login_required
 def my_calendar(request):
-    week_offset = int(request.GET.get('week', 0))
-    days = _week_days(week_offset)
     today = date.today()
+    # 月パラメータ（例: ?month=2026-11）
+    month_str = request.GET.get('month', '')
+    try:
+        year, mon = map(int, month_str.split('-'))
+        first_day = date(year, mon, 1)
+    except Exception:
+        first_day = date(today.year, today.month, 1)
+
+    # 月末日
+    if first_day.month == 12:
+        last_day = date(first_day.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last_day = date(first_day.year, first_day.month + 1, 1) - timedelta(days=1)
+
+    days = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)]
 
     schedules = PersonalSchedule.objects.filter(
         user=request.user,
-        date__range=[days[0], days[6]]
+        date__range=[first_day, last_day]
     )
     recurring = PersonalRecurringSchedule.objects.filter(user=request.user)
 
@@ -61,17 +74,31 @@ def my_calendar(request):
             'date': s.date.strftime('%Y-%m-%d'),
             'start_time': s.start_time.strftime('%H:%M'),
             'end_time': s.end_time.strftime('%H:%M'),
-            'label': s.label,
+            'label': s.label or '予定',
             'is_recurring': False,
+            'source': s.source,
         }
         for s in schedules
     ]
     schedules_json += _expand_recurring(recurring, days)
 
+    # 前月・次月
+    if first_day.month == 1:
+        prev_month = f'{first_day.year - 1}-12'
+    else:
+        prev_month = f'{first_day.year}-{first_day.month - 1:02d}'
+    if first_day.month == 12:
+        next_month = f'{first_day.year + 1}-01'
+    else:
+        next_month = f'{first_day.year}-{first_day.month + 1:02d}'
+
     return render(request, 'scheduler/my_calendar.html', {
-        'days': days,
         'today': today,
-        'week_offset': week_offset,
+        'first_day': first_day,
+        'first_weekday': first_day.weekday(),   # 0=月 … 6=日
+        'days_in_month': len(days),
+        'prev_month': prev_month,
+        'next_month': next_month,
         'schedules_json': json.dumps(schedules_json, ensure_ascii=False),
         'current_tab': 'my_calendar',
     })

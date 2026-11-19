@@ -4,26 +4,37 @@
 <div class="top-bar">
   <h1>マイカレンダー</h1>
   <div class="top-bar-actions">
-    <button class="icon-btn" onclick="openAddModal()">＋</button>
+    <button class="icon-btn" id="add-btn" onclick="openAddModal(null)">＋</button>
   </div>
 </div>
 
 <div class="scroll-area">
-  <!-- 週ナビ -->
-  <div class="card">
-    <div class="week-nav">
-      <button onclick="location.href='?week={{ week_offset|add:'-1' }}'">‹</button>
-      <span id="week-label"></span>
-      <button onclick="location.href='?week={{ week_offset|add:'1' }}'">›</button>
+  <div class="card month-card">
+    <!-- 月ナビ -->
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="location.href='?month={{ prev_month }}'">‹</button>
+      <span class="month-nav-label">{{ first_day|date:"Y年n月" }}</span>
+      <button class="month-nav-btn" onclick="location.href='?month={{ next_month }}'">›</button>
     </div>
-    <div class="day-strip" id="day-strip"></div>
+    <!-- 曜日ヘッダー -->
+    <div class="cal-grid dow-row">
+      <div>月</div><div>火</div><div>水</div><div>木</div><div>金</div>
+      <div class="sat">土</div><div class="sun">日</div>
+    </div>
+    <!-- 日付グリッド -->
+    <div class="cal-grid" id="cal-body"></div>
   </div>
+</div>
 
-  <!-- 選択日の予定 -->
-  <div class="section-title" id="selected-date-label">今日の予定</div>
-  <div class="card" id="schedule-list">
-    <div class="empty-state"><div class="empty-icon">📭</div><p>この日の予定はありません</p></div>
+<!-- 日別詳細パネル（下からスライド） -->
+<div class="panel-overlay" id="panel-overlay" hidden onclick="closeDayPanel()"></div>
+<div class="day-panel" id="day-panel" hidden>
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <span class="panel-title" id="panel-title"></span>
+    <button class="btn-panel-add" id="panel-add-btn">＋ 予定追加</button>
   </div>
+  <div id="panel-list"></div>
 </div>
 
 <!-- 追加モーダル -->
@@ -53,89 +64,212 @@
   </div>
 </div>
 
+<style>
+.month-card { padding: 12px 12px 16px; }
+.month-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.month-nav-label { font-size: 17px; font-weight: 700; }
+.month-nav-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg3); border: none; font-size: 18px;
+  color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+}
+.dow-row {
+  margin-bottom: 4px; text-align: center;
+  font-size: 11px; font-weight: 600; color: var(--fg2);
+}
+.dow-row .sat { color: #6366f1; }
+.dow-row .sun { color: #ef4444; }
+.day-cell {
+  aspect-ratio: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding-top: 5px; border-radius: 8px; cursor: pointer;
+  position: relative; gap: 2px;
+  transition: background .15s;
+}
+.day-cell:hover { background: var(--bg3); }
+.day-cell.empty { cursor: default; }
+.day-num {
+  font-size: 14px; font-weight: 500; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.day-num.today { background: var(--accent); color: #fff; font-weight: 700; }
+.day-num.selected:not(.today) { background: var(--accent-light); color: var(--accent); font-weight: 700; }
+.day-num.sat { color: #6366f1; }
+.day-num.sun { color: #ef4444; }
+.day-dots {
+  display: flex; gap: 2px; flex-wrap: wrap; justify-content: center;
+  max-width: 32px;
+}
+.day-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .7;
+}
+.day-dot.google { background: #34a853; }
+
+/* 日別パネル */
+.panel-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100;
+}
+.day-panel {
+  position: fixed; bottom: var(--nav-h); left: 0; right: 0;
+  background: var(--bg2); border-radius: 20px 20px 0 0;
+  padding: 0 0 20px; z-index: 101;
+  max-height: 70vh; overflow-y: auto;
+  box-shadow: 0 -4px 24px rgba(0,0,0,.12);
+}
+.panel-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 10px auto 0;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px 10px; border-bottom: 1px solid var(--border);
+}
+.panel-title { font-size: 16px; font-weight: 700; }
+.btn-panel-add {
+  padding: 7px 14px; background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.panel-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.panel-item:last-child { border-bottom: none; }
+.panel-item-left { display: flex; flex-direction: column; gap: 2px; }
+.panel-item-time { font-size: 12px; color: var(--fg2); }
+.panel-item-label { font-size: 15px; font-weight: 500; }
+.panel-item-label.google { color: #34a853; }
+.panel-del {
+  background: none; border: none; font-size: 18px; color: var(--fg3);
+  cursor: pointer; padding: 4px 8px;
+}
+.panel-empty {
+  text-align: center; padding: 32px 16px; color: var(--fg2); font-size: 14px;
+}
+</style>
+
 <script>
 const SCHEDULES = {{ schedules_json|safe }};
 const TODAY = '{{ today|date:"Y-m-d" }}';
-const WEEK_OFFSET = {{ week_offset }};
-const DAY_LABELS = ['日','月','火','水','木','金','土'];
+const FIRST_WEEKDAY = {{ first_weekday }}; // 0=月…6=日
+const DAYS_IN_MONTH = {{ days_in_month }};
+const YEAR = {{ first_day|date:"Y" }};
+const MONTH = {{ first_day|date:"n" }};
+const DOW = ['月','火','水','木','金','土','日'];
 
-let selectedDate = TODAY;
+let selectedDate = null;
 
-function buildWeek() {
-  const today = new Date(TODAY + 'T00:00:00');
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - today.getDay() + 1 + WEEK_OFFSET * 7);
-  // If today is Sunday, go back a week to get the right Monday
-  if (today.getDay() === 0) monday.setDate(monday.getDate() - 7);
+function fmtDate(y, m, d) {
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
 
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    days.push(d);
+function buildCalendar() {
+  const body = document.getElementById('cal-body');
+  body.innerHTML = '';
+
+  // 空白セル（月曜始まり）
+  for (let i = 0; i < FIRST_WEEKDAY; i++) {
+    const e = document.createElement('div');
+    e.className = 'day-cell empty';
+    body.appendChild(e);
   }
 
-  // Week label
-  const yr = days[0].getFullYear(), m = days[0].getMonth() + 1;
-  document.getElementById('week-label').textContent = `${yr}年${m}月`;
-
-  // Day strip
-  const strip = document.getElementById('day-strip');
-  strip.innerHTML = '';
-  days.forEach(d => {
-    const ds = fmtDate(d);
-    const hasDot = SCHEDULES.some(s => s.date === ds);
+  for (let d = 1; d <= DAYS_IN_MONTH; d++) {
+    const ds = fmtDate(YEAR, MONTH, d);
+    const dow = (FIRST_WEEKDAY + d - 1) % 7; // 0=月…6=日
     const isToday = ds === TODAY;
+    const isSelected = ds === selectedDate;
+    const items = SCHEDULES.filter(s => s.date === ds);
+    const hasManual = items.some(s => !s.is_recurring && s.source !== 'google');
+    const hasGoogle = items.some(s => s.source === 'google');
+    const hasRecurring = items.some(s => s.is_recurring);
+
     const cell = document.createElement('div');
     cell.className = 'day-cell';
+    cell.dataset.date = ds;
+
+    let numClass = 'day-num';
+    if (isToday) numClass += ' today';
+    else if (isSelected) numClass += ' selected';
+    if (dow === 5) numClass += ' sat';
+    if (dow === 6) numClass += ' sun';
+
+    let dots = '';
+    if (hasManual || hasRecurring) dots += '<div class="day-dot"></div>';
+    if (hasGoogle) dots += '<div class="day-dot google"></div>';
+
     cell.innerHTML = `
-      <div class="day-label">${DAY_LABELS[d.getDay()]}</div>
-      <div class="day-num${isToday ? ' today' : ''}${ds === selectedDate && !isToday ? ' selected' : ''}">${d.getDate()}</div>
-      <div class="day-dot" style="opacity:${hasDot ? 1 : 0}"></div>`;
-    cell.onclick = () => { selectedDate = ds; buildWeek(); renderSchedules(); };
-    strip.appendChild(cell);
-  });
+      <div class="${numClass}">${d}</div>
+      <div class="day-dots">${dots}</div>`;
+    cell.onclick = () => openDayPanel(ds);
+    body.appendChild(cell);
+  }
 }
 
-function fmtDate(d) {
-  return d.getFullYear() + '-' +
-    String(d.getMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getDate()).padStart(2, '0');
+function openDayPanel(ds) {
+  selectedDate = ds;
+  buildCalendar();
+
+  const d = new Date(ds + 'T00:00:00');
+  const dow = (d.getDay() + 6) % 7; // JS: 0=Sun → (0+6)%7=6=日
+  const title = `${d.getMonth()+1}月${d.getDate()}日（${DOW[dow]}）`;
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-add-btn').onclick = () => openAddModal(ds);
+
+  renderPanelList(ds);
+
+  document.getElementById('panel-overlay').hidden = false;
+  document.getElementById('day-panel').hidden = false;
 }
 
-function renderSchedules() {
-  const list = document.getElementById('schedule-list');
-  const label = document.getElementById('selected-date-label');
-  const d = new Date(selectedDate + 'T00:00:00');
-  const isToday = selectedDate === TODAY;
-  label.textContent = isToday
-    ? `今日の予定（${DAY_LABELS[d.getDay()]}・${d.getMonth()+1}/${d.getDate()}）`
-    : `${d.getMonth()+1}/${d.getDate()}（${DAY_LABELS[d.getDay()]}）の予定`;
+function closeDayPanel() {
+  document.getElementById('panel-overlay').hidden = true;
+  document.getElementById('day-panel').hidden = true;
+}
 
-  const items = SCHEDULES.filter(s => s.date === selectedDate);
+function renderPanelList(ds) {
+  const list = document.getElementById('panel-list');
+  const items = SCHEDULES.filter(s => s.date === ds)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
   if (!items.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>この日の予定はありません</p></div>';
+    list.innerHTML = '<div class="panel-empty">📭 この日の予定はありません</div>';
     return;
   }
-  items.sort((a, b) => a.start_time.localeCompare(b.start_time));
-  list.innerHTML = items.map(s => `
-    <div class="time-slot">
-      <div class="slot-time">${s.start_time}</div>
-      <div class="slot-event${s.is_recurring ? ' recurring' : ''}">
-        <span>${s.label || '予定'}</span>
-        ${!s.is_recurring ? `<button class="slot-del" onclick="deleteSchedule(${s.id}, this)">×</button>` : ''}
-      </div>
-    </div>`).join('');
+
+  list.innerHTML = items.map(s => {
+    const labelClass = s.source === 'google' ? 'panel-item-label google' : 'panel-item-label';
+    const icon = s.source === 'google' ? '📅 ' : (s.is_recurring ? '🔁 ' : '');
+    const delBtn = (!s.is_recurring && s.source !== 'google')
+      ? `<button class="panel-del" onclick="deleteSchedule(${s.id},'${ds}')">×</button>`
+      : '';
+    return `
+      <div class="panel-item">
+        <div class="panel-item-left">
+          <div class="panel-item-time">${s.start_time} 〜 ${s.end_time}</div>
+          <div class="${labelClass}">${icon}${s.label}</div>
+        </div>
+        ${delBtn}
+      </div>`;
+  }).join('');
 }
 
-function openAddModal() {
-  document.getElementById('new-date').value = selectedDate;
+function openAddModal(ds) {
+  const dateInput = document.getElementById('new-date');
+  dateInput.value = ds || selectedDate || TODAY;
+  document.getElementById('new-label').value = '';
   document.getElementById('add-modal').hidden = false;
 }
 function closeAddModal() { document.getElementById('add-modal').hidden = true; }
 
 async function addSchedule() {
-  const label = document.getElementById('new-label').value;
+  const label = document.getElementById('new-label').value.trim();
   const date = document.getElementById('new-date').value;
   const start = document.getElementById('new-start').value;
   const end = document.getElementById('new-end').value;
@@ -144,18 +278,18 @@ async function addSchedule() {
   const res = await fetch('/api/personal-schedule/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
-    body: JSON.stringify({action: 'add', date, start_time: start, end_time: end, label})
+    body: JSON.stringify({action: 'add', date, start_time: start, end_time: end, label: label || '予定'})
   });
   const data = await res.json();
   if (data.status === 'ok') {
-    SCHEDULES.push({id: data.id, date, start_time: start, end_time: end, label, is_recurring: false});
+    SCHEDULES.push({id: data.id, date, start_time: start, end_time: end, label: label || '予定', is_recurring: false, source: 'manual'});
     closeAddModal();
-    buildWeek();
-    renderSchedules();
+    buildCalendar();
+    if (selectedDate === date) renderPanelList(date);
   }
 }
 
-async function deleteSchedule(id, btn) {
+async function deleteSchedule(id, ds) {
   await fetch('/api/personal-schedule/', {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
@@ -163,8 +297,8 @@ async function deleteSchedule(id, btn) {
   });
   const idx = SCHEDULES.findIndex(s => s.id === id);
   if (idx !== -1) SCHEDULES.splice(idx, 1);
-  buildWeek();
-  renderSchedules();
+  buildCalendar();
+  if (selectedDate) renderPanelList(ds);
 }
 
 function getCookie(name) {
@@ -172,7 +306,6 @@ function getCookie(name) {
     .find(c => c.startsWith(name + '='))?.split('=')[1] ?? '';
 }
 
-buildWeek();
-renderSchedules();
+buildCalendar();
 </script>
 {% endblock %}
