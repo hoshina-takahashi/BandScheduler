@@ -239,6 +239,57 @@ def group_calendar(request, room_id):
     # 候補日（Pythonリストのまま渡す → テンプレートで {% if candidate_dates %} が正確に動く）
     candidate_dates = room.candidate_dates or []
 
+    # 候補日ごとの空き状況を計算して candidate_data を構築
+    candidate_data = []
+    if candidate_dates:
+        from datetime import date as _date
+        cand_date_objs = []
+        for ds in candidate_dates:
+            try:
+                cand_date_objs.append(_date.fromisoformat(ds))
+            except (ValueError, TypeError):
+                pass
+        if cand_date_objs:
+            min_d, max_d = min(cand_date_objs), max(cand_date_objs)
+            cand_personal = list(PersonalSchedule.objects.filter(
+                user_id__in=user_ids, date__range=[min_d, max_d]
+            ))
+            for d in cand_date_objs:
+                weekday_int = d.weekday()
+                day_personal = [s for s in cand_personal if s.date == d]
+                day_recurring = [r for r in all_recurring if r.weekday == weekday_int]
+                member_busy = {m.user_id: set() for m in members}
+                for s in day_personal:
+                    s_start = s.start_time.hour * 60 + s.start_time.minute
+                    s_end = s.end_time.hour * 60 + s.end_time.minute
+                    for h in CALENDAR_HOURS:
+                        if s_start <= h * 60 < s_end:
+                            member_busy[s.user_id].add(h)
+                for r in day_recurring:
+                    r_start = r.start_time.hour * 60 + r.start_time.minute
+                    r_end = r.end_time.hour * 60 + r.end_time.minute
+                    for h in CALENDAR_HOURS:
+                        if r_start <= h * 60 < r_end:
+                            member_busy[r.user_id].add(h)
+                slots = []
+                all_free_count = 0
+                for h in CALENDAR_HOURS:
+                    busy_count = sum(1 for bh in member_busy.values() if h in bh)
+                    if busy_count == 0:
+                        status = 'free'
+                        all_free_count += 1
+                    elif member_count > 0 and busy_count == member_count:
+                        status = 'busy'
+                    else:
+                        status = 'partial'
+                    slots.append({'time': f'{h}:00', 'status': status})
+                candidate_data.append({
+                    'date_str': f'{d.month}月{d.day}日',
+                    'weekday': WEEKDAY_LABELS[weekday_int],
+                    'slots': slots,
+                    'all_free_count': all_free_count,
+                })
+
     # JS用フラットJSON
     all_schedules_js = []
     for m in members:
@@ -269,6 +320,7 @@ def group_calendar(request, room_id):
         'week_label': week_label,
         'schedules_json': json.dumps(all_schedules_js, ensure_ascii=False),
         'candidate_dates': candidate_dates,
+        'candidate_data': candidate_data,
         'current_tab': 'group_list',
     })
 
