@@ -659,6 +659,18 @@ def gcal_sync(request):
 @require_POST
 def gcal_disconnect(request):
     """Google カレンダー連携を解除し、同期済み予定も削除する"""
+    import urllib.request
+    import urllib.parse
+    token_obj = GoogleCalendarToken.objects.filter(user=request.user).first()
+    if token_obj and token_obj.access_token:
+        # Googleのトークン自体を無効化
+        try:
+            data = urllib.parse.urlencode({'token': token_obj.access_token}).encode()
+            urllib.request.urlopen(
+                'https://oauth2.googleapis.com/revoke', data=data, timeout=5
+            )
+        except Exception:
+            pass
     PersonalSchedule.objects.filter(user=request.user, source='google').delete()
     GoogleCalendarToken.objects.filter(user=request.user).delete()
     return redirect('scheduler:user_settings')
