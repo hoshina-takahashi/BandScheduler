@@ -124,3 +124,7 @@ LOGGING = {
         'django': {'handlers': ['console'], 'level': 'WARNING', 'propagate': True},
     },
 }
+
+# TimeTree API 連携
+TIMETREE_CLIENT_ID = os.environ.get('TIMETREE_CLIENT_ID', '')
+TIMETREE_CLIENT_SECRET = os.environ.get('TIMETREE_CLIENT_SECRET', '')

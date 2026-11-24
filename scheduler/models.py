@@ -11,6 +11,7 @@ class PersonalSchedule(models.Model):
         ("manual", "手動入力"),
         ("google", "Google カレンダー"),
         ("ics", "ICSファイル"),
+        ("timetree", "TimeTree"),
     ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="personal_schedules")
     date = models.DateField(verbose_name="日付")
@@ -119,3 +120,13 @@ class RecurringSchedule(models.Model):
 
     class Meta:
         ordering = ["weekday", "start_time"]
+
+
+class TimeTreeToken(models.Model):
+    """TimeTree API連携用トークン"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="timetree_token")
+    access_token = models.TextField()
+    synced_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user.email} - TimeTree Token"

@@ -22,6 +22,11 @@ urlpatterns = [
     # ICS インポート
     path("ics/import/", views.ics_import, name="ics_import"),
     path("ics/clear/", views.ics_clear, name="ics_clear"),
+    # TimeTree 連携
+    path("timetree/auth/", views.timetree_auth, name="timetree_auth"),
+    path("timetree/callback/", views.timetree_callback, name="timetree_callback"),
+    path("timetree/sync/", views.timetree_sync, name="timetree_sync"),
+    path("timetree/disconnect/", views.timetree_disconnect, name="timetree_disconnect"),
     # Google カレンダー連携
     path("gcal/auth/", views.gcal_auth, name="gcal_auth"),
     path("gcal/callback/", views.gcal_callback, name="gcal_callback"),

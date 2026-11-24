@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from .models import (
+    TimeTreeToken,
     Room, Member, Schedule, RecurringSchedule,
     PersonalSchedule, PersonalRecurringSchedule,
     GoogleCalendarToken,
@@ -182,6 +183,9 @@ def user_settings(request):
     ics_import_error = request.session.pop('ics_import_error', None)
     ics_clear_done = request.session.pop('ics_clear_done', False)
     ics_event_count = PersonalSchedule.objects.filter(user=request.user, source='ics').count()
+    timetree_token = TimeTreeToken.objects.filter(user=request.user).first()
+    timetree_sync_error = request.session.pop('timetree_sync_error', None)
+    timetree_sync_count = request.session.pop('timetree_sync_count', None)
     return render(request, 'scheduler/user_settings.html', {
         'current_tab': 'user_settings',
         'gcal_token': gcal_token,
@@ -191,6 +195,9 @@ def user_settings(request):
         'ics_import_error': ics_import_error,
         'ics_clear_done': ics_clear_done,
         'ics_event_count': ics_event_count,
+        'timetree_token': timetree_token,
+        'timetree_sync_error': timetree_sync_error,
+        'timetree_sync_count': timetree_sync_count,
     })
 
 
@@ -779,4 +786,187 @@ def ics_import(request):
 def ics_clear(request):
     PersonalSchedule.objects.filter(user=request.user, source='ics').delete()
     request.session['ics_clear_done'] = True
+    return redirect('scheduler:user_settings')
+
+
+# ==================== TimeTree 連携 ====================
+
+TIMETREE_AUTH_URL = 'https://timetreeapp.com/oauth/authorize'
+TIMETREE_TOKEN_URL = 'https://timetreeapp.com/oauth/token'
+TIMETREE_API_BASE = 'https://timetreeapis.com'
+
+
+def _get_timetree_creds():
+    from django.conf import settings
+    return settings.TIMETREE_CLIENT_ID, settings.TIMETREE_CLIENT_SECRET
+
+
+@login_required
+def timetree_auth(request):
+    import secrets as _secrets
+    from urllib.parse import urlencode
+    client_id, _ = _get_timetree_creds()
+    if not client_id:
+        request.session['timetree_sync_error'] = 'TIMETREE_CLIENT_ID が設定されていません'
+        return redirect('scheduler:user_settings')
+    callback_url = request.build_absolute_uri(reverse('scheduler:timetree_callback'))
+    state = _secrets.token_urlsafe(16)
+    request.session['timetree_state'] = state
+    params = urlencode({
+        'client_id': client_id,
+        'redirect_uri': callback_url,
+        'response_type': 'code',
+        'state': state,
+    })
+    return redirect(f'{TIMETREE_AUTH_URL}?{params}')
+
+
+@login_required
+def timetree_callback(request):
+    import urllib.request as _req
+    import urllib.parse as _parse
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if 'error' in request.GET:
+        return redirect('scheduler:user_settings')
+
+    code = request.GET.get('code', '')
+    state = request.GET.get('state', '')
+    if not code or state != request.session.get('timetree_state', ''):
+        request.session['timetree_sync_error'] = '認証に失敗しました（state不一致）'
+        return redirect('scheduler:user_settings')
+
+    try:
+        client_id, client_secret = _get_timetree_creds()
+        callback_url = request.build_absolute_uri(reverse('scheduler:timetree_callback'))
+        post_data = _parse.urlencode({
+            'grant_type': 'authorization_code',
+            'code': code,
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'redirect_uri': callback_url,
+        }).encode()
+        req = _req.Request(TIMETREE_TOKEN_URL, data=post_data, method='POST',
+                           headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        with _req.urlopen(req) as resp:
+            token_data = json.loads(resp.read())
+        access_token = token_data.get('access_token', '')
+        if not access_token:
+            raise ValueError(f'access_token が取得できませんでした: {token_data}')
+        TimeTreeToken.objects.update_or_create(
+            user=request.user,
+            defaults={'access_token': access_token},
+        )
+    except Exception as e:
+        logger.error(f'timetree_callback error: {e}', exc_info=True)
+        request.session['timetree_sync_error'] = str(e)
+
+    return redirect('scheduler:user_settings')
+
+@login_required
+@require_POST
+def timetree_sync(request):
+    """TimeTree の全カレンダーから今後7日分のイベントを取込む。
+    TimeTree API v1 の upcoming_events は最大 days=7 のため、
+    同期ボタンを押すたびに直近7日分を再取込する。"""
+    import urllib.request as _req
+    import urllib.error as _uerr
+    import logging
+    from datetime import datetime, time as _time
+    logger = logging.getLogger(__name__)
+
+    token = TimeTreeToken.objects.filter(user=request.user).first()
+    if not token:
+        return redirect('scheduler:user_settings')
+
+    try:
+        JST = ZoneInfo('Asia/Tokyo')
+        headers = {
+            'Authorization': f'Bearer {token.access_token}',
+            'Accept': 'application/vnd.timetree.v1+json',
+        }
+
+        def tt_get(url):
+            r = _req.Request(url, headers=headers)
+            with _req.urlopen(r) as resp:
+                return json.loads(resp.read())
+
+        cal_data = tt_get(f'{TIMETREE_API_BASE}/v1/calendars')
+        calendars = cal_data.get('data', [])
+
+        PersonalSchedule.objects.filter(user=request.user, source='timetree').delete()
+
+        created = 0
+        today = date.today()
+
+        for cal in calendars:
+            cal_id = cal.get('id')
+            if not cal_id:
+                continue
+            url = f'{TIMETREE_API_BASE}/v1/calendars/{cal_id}/upcoming_events?timezone=Asia%2FTokyo&days=7'
+            try:
+                events_data = tt_get(url)
+            except _uerr.HTTPError as he:
+                logger.warning(f'timetree_sync: HTTP {he.code} for cal {cal_id}')
+                continue
+
+            for ev in events_data.get('data', []):
+                attrs = ev.get('attributes', {})
+                title = attrs.get('title', '')
+                start_at = attrs.get('start_at')
+                end_at = attrs.get('end_at')
+                all_day = attrs.get('all_day', False)
+
+                if not start_at:
+                    continue
+
+                if all_day:
+                    event_date = date.fromisoformat(start_at[:10])
+                    s_time = _time(0, 0)
+                    e_time = _time(23, 59)
+                    label = f'[終日] {title}' if title else '[終日]'
+                else:
+                    try:
+                        s_dt = datetime.fromisoformat(start_at.replace('Z', '+00:00')).astimezone(JST)
+                        e_dt = (datetime.fromisoformat(end_at.replace('Z', '+00:00')).astimezone(JST)
+                                if end_at else None)
+                    except Exception:
+                        continue
+                    event_date = s_dt.date()
+                    s_time = s_dt.time().replace(second=0, microsecond=0)
+                    if e_dt:
+                        e_time = e_dt.time().replace(second=0, microsecond=0)
+                        if e_time == _time(0, 0) and e_dt.date() > event_date:
+                            e_time = _time(23, 59)
+                    else:
+                        e_time = _time(23, 59)
+                    label = title
+
+                if event_date < today:
+                    continue
+
+                PersonalSchedule.objects.create(
+                    user=request.user,
+                    date=event_date,
+                    start_time=s_time,
+                    end_time=e_time,
+                    label=label,
+                    source='timetree',
+                )
+                created += 1
+
+        token.synced_at = timezone.now()
+        token.save()
+        request.session['timetree_sync_count'] = created
+
+    except Exception as e:
+        logger.error(f'timetree_sync error: {e}', exc_info=True)
+        request.session['timetree_sync_error'] = str(e)
+
+    return redirect('scheduler:user_settings')
+
+def timetree_disconnect(request):
+    PersonalSchedule.objects.filter(user=request.user, source='timetree').delete()
+    TimeTreeToken.objects.filter(user=request.user).delete()
     return redirect('scheduler:user_settings')

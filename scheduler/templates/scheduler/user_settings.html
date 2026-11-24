@@ -39,10 +39,16 @@
 
     <!-- 同期結果表示 -->
     {% if gcal_sync_error %}
-    <div class="sync-msg sync-msg-error">⚠️ 同期エラー: {{ gcal_sync_error }}</div>
+    <div class="sync-msg sync-msg-error">⚠️ 同期エラー (Google): {{ gcal_sync_error }}</div>
     {% endif %}
     {% if gcal_sync_count is not None %}
-    <div class="sync-msg sync-msg-ok">✅ {{ gcal_sync_count }}件の予定を同期しました</div>
+    <div class="sync-msg sync-msg-ok">✅ Google: {{ gcal_sync_count }}件の予定を同期しました</div>
+    {% endif %}
+    {% if timetree_sync_error %}
+    <div class="sync-msg sync-msg-error">⚠️ 同期エラー (TimeTree): {{ timetree_sync_error }}</div>
+    {% endif %}
+    {% if timetree_sync_count is not None %}
+    <div class="sync-msg sync-msg-ok">✅ TimeTree: {{ timetree_sync_count }}件の予定を同期しました（直近7日分）</div>
     {% endif %}
 
     <!-- Google カレンダー -->
@@ -76,6 +82,41 @@
           </form>
         {% else %}
           <a href="{% url 'scheduler:gcal_auth' %}" class="btn-connect">連携する</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- TimeTree -->
+    <div class="sync-item">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:22px;">🌳</span>
+        <div>
+          <div style="font-weight:500;">TimeTree</div>
+          {% if timetree_token %}
+            <div class="text-muted" style="font-size:12px;">
+              {% if timetree_token.synced_at %}
+                最終同期：{{ timetree_token.synced_at|date:"m/d H:i" }}（直近7日分）
+              {% else %}
+                連携済み・未同期
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="text-muted" style="font-size:12px;">TimeTreeと連携して予定を取り込む</div>
+          {% endif %}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        {% if timetree_token %}
+          <form method="post" action="{% url 'scheduler:timetree_sync' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-sync">🔄 同期</button>
+          </form>
+          <form method="post" action="{% url 'scheduler:timetree_disconnect' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-disconnect" onclick="return confirm('連携を解除しますか？同期済みの予定も削除されます。')">解除</button>
+          </form>
+        {% else %}
+          <a href="{% url 'scheduler:timetree_auth' %}" class="btn-connect">連携する</a>
         {% endif %}
       </div>
     </div>
