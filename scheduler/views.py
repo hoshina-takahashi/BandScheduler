@@ -178,11 +178,19 @@ def user_settings(request):
     gcal_token = GoogleCalendarToken.objects.filter(user=request.user).first()
     gcal_sync_error = request.session.pop('gcal_sync_error', None)
     gcal_sync_count = request.session.pop('gcal_sync_count', None)
+    ics_import_count = request.session.pop('ics_import_count', None)
+    ics_import_error = request.session.pop('ics_import_error', None)
+    ics_clear_done = request.session.pop('ics_clear_done', False)
+    ics_event_count = PersonalSchedule.objects.filter(user=request.user, source='ics').count()
     return render(request, 'scheduler/user_settings.html', {
         'current_tab': 'user_settings',
         'gcal_token': gcal_token,
         'gcal_sync_error': gcal_sync_error,
         'gcal_sync_count': gcal_sync_count,
+        'ics_import_count': ics_import_count,
+        'ics_import_error': ics_import_error,
+        'ics_clear_done': ics_clear_done,
+        'ics_event_count': ics_event_count,
     })
 
 
@@ -673,4 +681,102 @@ def gcal_disconnect(request):
             pass
     PersonalSchedule.objects.filter(user=request.user, source='google').delete()
     GoogleCalendarToken.objects.filter(user=request.user).delete()
+    return redirect('scheduler:user_settings')
+
+
+# ==================== ICS インポート ====================
+
+@login_required
+@require_POST
+def ics_import(request):
+    import logging
+    logger = logging.getLogger(__name__)
+
+    uploaded = request.FILES.get('ics_file')
+    if not uploaded:
+        request.session['ics_import_error'] = 'ファイルが選択されていません'
+        return redirect('scheduler:user_settings')
+
+    try:
+        from icalendar import Calendar as ICalendar
+        from datetime import date as _date, datetime as _datetime, time as _time
+        from zoneinfo import ZoneInfo
+
+        JST = ZoneInfo('Asia/Tokyo')
+        today = date.today()
+        future_limit = today + timedelta(days=180)
+
+        cal_data = uploaded.read()
+        cal = ICalendar.from_ical(cal_data)
+
+        # 既存の ICS 取込予定を削除してから再インポート
+        PersonalSchedule.objects.filter(user=request.user, source='ics').delete()
+
+        created = 0
+        for component in cal.walk():
+            if component.name != 'VEVENT':
+                continue
+
+            dtstart = component.get('DTSTART')
+            dtend = component.get('DTEND')
+            summary = str(component.get('SUMMARY', ''))
+
+            if dtstart is None:
+                continue
+
+            start_val = dtstart.dt
+            end_val = dtend.dt if dtend else None
+
+            # 終日イベント（date 型）
+            if isinstance(start_val, _date) and not isinstance(start_val, _datetime):
+                event_date = start_val
+                start_time_val = _time(0, 0)
+                end_time_val = _time(23, 59)
+                label = f'[終日] {summary}' if summary else '[終日]'
+            else:
+                # datetime — JST へ変換
+                if hasattr(start_val, 'tzinfo') and start_val.tzinfo:
+                    start_val = start_val.astimezone(JST)
+                if end_val and isinstance(end_val, _datetime) and hasattr(end_val, 'tzinfo') and end_val.tzinfo:
+                    end_val = end_val.astimezone(JST)
+
+                event_date = start_val.date()
+                start_time_val = start_val.time().replace(second=0, microsecond=0)
+                if end_val and isinstance(end_val, _datetime):
+                    end_time_val = end_val.time().replace(second=0, microsecond=0)
+                    # 次の日 00:00 は 23:59 に丸める
+                    if end_time_val == _time(0, 0) and end_val.date() > event_date:
+                        end_time_val = _time(23, 59)
+                else:
+                    end_time_val = _time(23, 59)
+                label = summary
+
+            # 今日〜180日以内のみ取込
+            if event_date < today or event_date > future_limit:
+                continue
+
+            PersonalSchedule.objects.create(
+                user=request.user,
+                date=event_date,
+                start_time=start_time_val,
+                end_time=end_time_val,
+                label=label,
+                source='ics',
+            )
+            created += 1
+
+        request.session['ics_import_count'] = created
+
+    except Exception as e:
+        logger.error(f'ics_import error: {e}', exc_info=True)
+        request.session['ics_import_error'] = str(e)
+
+    return redirect('scheduler:user_settings')
+
+
+@login_required
+@require_POST
+def ics_clear(request):
+    PersonalSchedule.objects.filter(user=request.user, source='ics').delete()
+    request.session['ics_clear_done'] = True
     return redirect('scheduler:user_settings')

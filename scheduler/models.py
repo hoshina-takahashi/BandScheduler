@@ -10,6 +10,7 @@ class PersonalSchedule(models.Model):
     SOURCE_CHOICES = [
         ("manual", "手動入力"),
         ("google", "Google カレンダー"),
+        ("ics", "ICSファイル"),
     ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="personal_schedules")
     date = models.DateField(verbose_name="日付")

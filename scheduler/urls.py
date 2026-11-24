@@ -19,6 +19,9 @@ urlpatterns = [
     path("api/room/<uuid:room_id>/schedule/", views.schedule_save, name="schedule_save"),
     path("room/<uuid:room_id>/delete/", views.group_delete, name="group_delete"),
     path("room/<uuid:room_id>/leave/", views.group_leave, name="group_leave"),
+    # ICS インポート
+    path("ics/import/", views.ics_import, name="ics_import"),
+    path("ics/clear/", views.ics_clear, name="ics_clear"),
     # Google カレンダー連携
     path("gcal/auth/", views.gcal_auth, name="gcal_auth"),
     path("gcal/callback/", views.gcal_callback, name="gcal_callback"),

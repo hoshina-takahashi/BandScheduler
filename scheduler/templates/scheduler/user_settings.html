@@ -80,16 +80,42 @@
       </div>
     </div>
 
-    <!-- Apple カレンダー（準備中） -->
-    <div class="sync-item">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:22px;">🍎</span>
-        <div>
-          <div style="font-weight:500;">Apple カレンダー</div>
-          <div class="text-muted" style="font-size:12px;">近日公開予定</div>
+    <!-- ICS インポート -->
+    {% if ics_import_error %}
+    <div class="sync-msg sync-msg-error">⚠️ インポートエラー: {{ ics_import_error }}</div>
+    {% endif %}
+    {% if ics_import_count is not None %}
+    <div class="sync-msg sync-msg-ok">✅ {{ ics_import_count }}件の予定を取り込みました（今日〜180日分）</div>
+    {% endif %}
+    {% if ics_clear_done %}
+    <div class="sync-msg sync-msg-ok">🗑️ ICS取込予定をすべて削除しました</div>
+    {% endif %}
+    <div class="sync-item sync-item--ics">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <span style="font-size:22px;flex-shrink:0;">📆</span>
+        <div style="min-width:0;">
+          <div style="font-weight:500;">ICSファイルから取込</div>
+          <div class="text-muted" style="font-size:12px;">Apple・TimeTree・Outlook など対応</div>
+          {% if ics_event_count %}
+          <div class="text-muted" style="font-size:12px;">現在 {{ ics_event_count }}件 読み込み済み</div>
+          {% endif %}
         </div>
       </div>
-      <span class="badge coming-soon">準備中</span>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;">
+        <form method="post" action="{% url 'scheduler:ics_import' %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <label class="btn-file-label">
+            📂 ファイル選択
+            <input type="file" name="ics_file" accept=".ics" class="btn-file-input" onchange="this.form.submit()">
+          </label>
+        </form>
+        {% if ics_event_count %}
+        <form method="post" action="{% url 'scheduler:ics_clear' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn-disconnect" style="font-size:12px;padding:5px 10px;" onclick="return confirm('ICS取込予定をすべて削除しますか？')">削除</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
   </div>
 
@@ -125,6 +151,12 @@
   padding: 12px 0; border-bottom: 1px solid var(--border);
 }
 .sync-item:last-child { border-bottom: none; }
+.sync-item--ics { align-items: flex-start; padding: 14px 0; }
+.btn-file-label {
+  display: inline-block; padding: 7px 14px; background: var(--accent); color: #fff;
+  border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.btn-file-input { display: none; }
 .badge.coming-soon { background: var(--bg3); color: var(--fg2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 12px; }
 .btn-connect {
   display: inline-block; padding: 7px 14px; background: var(--accent); color: #fff;
